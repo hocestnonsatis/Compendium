@@ -16,6 +16,7 @@
 - Güncelleme: 2026-08-03 — Sprint 1 tamamlandı: loopback/SSRF, sanitize, signal-to-call, SLM temp=0/seed.
 - Güncelleme: 2026-08-03 — Sprint 2 tamamlandı: AFM prune, BM25 filter/filter_relevant, action=rerank.
 - Güncelleme: 2026-08-03 — Sprint 3 tamamlandı: stats telemetry, OWNER hizalama, HTTP smoke; release NPM_TOKEN bekliyor.
+- Güncelleme: 2026-08-03 — PR #1 merge → `master`; tag/release `v0.1.0` oluşturuldu.
 
 ## Tercihler
 - Dil: Rust; ana dalda çalış.
@@ -70,14 +71,15 @@
 6. BM25: `filter` (+`query`) ve `filter_relevant` heuristic; teknik ID/versiyon/status koruma.
 7. `action=rerank`: BM25 skorlu sıra (`items` / `text` / chunk `map`).
 
-### Sprint 3 — Telemetri + dağıtım ✅ (release hariç)
+### Sprint 3 — Telemetri + dağıtım ✅
 8. Stats: `p50_latency_ms` / `p99_latency_ms`, `bypass_calls` / `bypass_ratio`, `token_backend`, `by_backend`.
-9. npm/docs: `hocestnonsatis/Compendium` (`package.json`, `platform.js`, `DISTRIBUTION.md`).
+9. npm/docs: `hocestnonsatis/Compendium`.
 10. HTTP e2e: `cargo test --features http --test http_smoke`.
-- `v0.1.0` GitHub Release + npm publish: **`NPM_TOKEN` secret + commit/tag** gerekir (henüz yok / yapılmadı).
+- `v0.1.0` GitHub Release oluşturuldu: https://github.com/hocestnonsatis/Compendium/releases/tag/v0.1.0
+- npm publish: CI `NPM_TOKEN` secret’a bağlı (henüz yoksa workflow publish adımı fail olur).
 
 ## Sıradaki Adımlar
-- Commit + `v0.1.0` tag/release (önce `NPM_TOKEN` secret ekle).
+- GitHub secret `NPM_TOKEN` ekle; gerekirse release workflow’u yeniden çalıştır.
 - İsteğe bağlı: SLM cross-encoder rerank.
 
 ## Repo
