@@ -18,6 +18,7 @@ use crate::pipeline::{
     filter::{filter, FilterOptions},
     output::{compress_output, CompressOutputOptions},
     prune::{parse_history_input, prune_history, HistoryMessage, PruneOptions},
+    smart::{filter_relevant, summarize_smart, SmartOptions},
     stats::SessionStats,
     summarize::{summarize, SummarizeOptions},
     tokens::count_tokens_detailed,
@@ -95,6 +96,8 @@ impl CompendiumServer {
             CompendiumAction::Compress => self.act_compress(params),
             CompendiumAction::CompressOutput => self.act_compress_output(params),
             CompendiumAction::Summarize => self.act_summarize(params),
+            CompendiumAction::SummarizeSmart => self.act_summarize_smart(params),
+            CompendiumAction::FilterRelevant => self.act_filter_relevant(params),
             CompendiumAction::PruneHistory => self.act_prune(params),
             CompendiumAction::Chunk => self.act_chunk(params),
             CompendiumAction::Resolve => self.act_resolve(params),
@@ -160,6 +163,33 @@ impl CompendiumServer {
         let options = params.summarize.unwrap_or_default();
         let result = summarize(&text, &options, &self.config);
         self.record("summarize", &result.metrics);
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
+
+    fn act_summarize_smart(&self, params: GatewayParams) -> Result<Value, String> {
+        let text = Self::require_text(&params)?;
+        let smart = params.smart.unwrap_or_default();
+        let summarize_opts = params.summarize.unwrap_or_default();
+        let result = summarize_smart(&text, &smart, &summarize_opts, &self.config)?;
+        self.record("summarize_smart", &result.metrics);
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
+
+    fn act_filter_relevant(&self, params: GatewayParams) -> Result<Value, String> {
+        let text = Self::require_text(&params)?;
+        let mut smart = params.smart.unwrap_or_default();
+        let query = params
+            .query
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .or_else(|| smart.query.take())
+            .ok_or_else(|| {
+                "filter_relevant requires `query` (top-level or smart.query)".to_string()
+            })?;
+        let result = filter_relevant(&text, &query, &smart, &self.config)?;
+        self.record("filter_relevant", &result.metrics);
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
 
@@ -322,6 +352,10 @@ pub enum CompendiumAction {
     CompressOutput,
     /// Hierarchical summary (conversation / file tree / outline).
     Summarize,
+    /// Local-SLM dense summary (heuristic fallback if LLM unset/fails).
+    SummarizeSmart,
+    /// Query-aware keep of relevant lines (local SLM + heuristic fallback).
+    FilterRelevant,
     /// Drop filler and/or compress older chat turns.
     PruneHistory,
     /// Split corpus into `cmp://` chunks (also cached for resolve).
@@ -347,6 +381,8 @@ impl CompendiumAction {
             Self::Compress => "compress",
             Self::CompressOutput => "compress_output",
             Self::Summarize => "summarize",
+            Self::SummarizeSmart => "summarize_smart",
+            Self::FilterRelevant => "filter_relevant",
             Self::PruneHistory => "prune_history",
             Self::Chunk => "chunk",
             Self::Resolve => "resolve",
@@ -368,6 +404,9 @@ pub struct GatewayParams {
     /// Primary text for filter/compress/summarize/chunk/count_tokens/cache_store/compress_output,
     /// or a `user:/assistant:` transcript for prune_history, or raw corpus for resolve.
     pub text: Option<String>,
+
+    /// Relevance query for `filter_relevant`.
+    pub query: Option<String>,
 
     /// Structured chat turns for `prune_history` (preferred over `text`).
     pub messages: Option<Vec<HistoryMessage>>,
@@ -392,8 +431,10 @@ pub struct GatewayParams {
     pub compress: Option<CompressOptions>,
     /// Options for `action=compress_output`.
     pub output: Option<CompressOutputOptions>,
-    /// Options for `action=summarize`.
+    /// Options for `action=summarize` (also used as structure hints by `summarize_smart`).
     pub summarize: Option<SummarizeOptions>,
+    /// Options for `action=summarize_smart` / `filter_relevant`.
+    pub smart: Option<SmartOptions>,
     /// Options for `action=prune_history`.
     pub prune: Option<PruneOptions>,
     /// Options for `action=chunk` (and re-chunk fallback in `resolve`).
@@ -418,7 +459,7 @@ impl CompendiumServer {
     /// Token-optimization gateway — one tool, many actions via `action`.
     #[tool(
         name = "compendium",
-        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate. Pass text (or messages/key/id as required). Use filter/compress_output on noisy logs, compress or cache_store for bulky blobs, prune_history/summarize for long chats, chunk+resolve for reference maps, count_tokens/stats to measure."
+        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | summarize_smart | filter_relevant | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate. Pass text (or messages/key/id/query as required). Use filter/compress_output on noisy logs; summarize_smart/filter_relevant when a local SLM is configured (heuristic fallback otherwise); compress or cache_store for bulky blobs; prune_history/summarize for long chats; chunk+resolve for reference maps; count_tokens/stats to measure."
     )]
     fn compendium(
         &self,
@@ -431,6 +472,6 @@ impl CompendiumServer {
 #[tool_handler(
     name = "compendium",
     version = "0.1.0",
-    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy tool/log output; action=compress or cache_store before pasting large blobs; action=summarize or prune_history for long histories; action=chunk then resolve for large corpora; action=count_tokens or stats to measure savings."
+    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy tool/log output; action=filter_relevant with a query when you need query-aware keep; action=summarize_smart for denser local-SLM summaries (falls back to heuristics); action=compress or cache_store before pasting large blobs; action=summarize or prune_history for long histories; action=chunk then resolve for large corpora; action=count_tokens or stats to measure savings."
 )]
 impl ServerHandler for CompendiumServer {}

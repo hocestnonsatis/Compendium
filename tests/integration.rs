@@ -1,9 +1,9 @@
 //! Integration-style tests for the public pipeline API and MCP tool wiring.
 
 use compendium::{
-    chunk_with_refs, compress, compress_output, count_tokens_detailed, filter, parse_history_input,
-    prune_history, summarize, ChunkOptions, CompressOptions, Config, FilterOptions, PruneOptions,
-    SummarizeOptions,
+    chunk_with_refs, compress, compress_output, count_tokens_detailed, filter, filter_relevant,
+    parse_history_input, prune_history, summarize, summarize_smart, ChunkOptions, CompressOptions,
+    Config, FilterOptions, PruneOptions, SmartBackend, SmartOptions, SummarizeOptions,
 };
 use compendium::pipeline::compress::ContentType;
 use compendium::pipeline::output::CompressOutputOptions;
@@ -99,4 +99,27 @@ fn server_exposes_single_gateway_tool() {
         vec!["compendium".to_string()],
         "expected a single gateway tool; have {names:?}"
     );
+}
+
+#[test]
+fn smart_actions_fall_back_without_local_llm() {
+    let config = Config::default();
+    let summary = summarize_smart(
+        "# Title\nBody with enough characters to summarize usefully.\n",
+        &SmartOptions::default(),
+        &SummarizeOptions::default(),
+        &config,
+    )
+    .expect("summarize_smart");
+    assert_eq!(summary.backend, SmartBackend::Heuristic);
+
+    let filtered = filter_relevant(
+        "ERROR payment failed\nINFO heartbeat\n",
+        "payment",
+        &SmartOptions::default(),
+        &config,
+    )
+    .expect("filter_relevant");
+    assert_eq!(filtered.backend, SmartBackend::Heuristic);
+    assert!(filtered.content.contains("payment"));
 }

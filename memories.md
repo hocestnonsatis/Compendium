@@ -11,6 +11,7 @@
 - Cursor rule: `.cursor/rules/compendium.mdc` (alwaysApply).
 - `bin/run.js`: local `target/` optional platform paketinden önce; stderr’e binary yolu.
 - Güncelleme: 2026-08-03 — 12 ayrı tool → tek gateway.
+- Güncelleme: 2026-08-03 — local SLM: `summarize_smart` + `filter_relevant` (OpenAI-compatible loopback; heuristic fallback).
 
 ## Tercihler
 - Dil: Rust; ana dalda çalış.
@@ -23,6 +24,7 @@
 - Loglar stderr (stdio MCP).
 - Session state: `Arc<Mutex<CacheStore + SessionStats>>`; chunk otomatik cache’lenir.
 - Tool UX: tek gateway + `action`; eski `compendium_*` isimleri yok.
+- Local SLM: `COMPENDIUM_LOCAL_LLM_URL` + model/api_key/timeout; reqwest blocking + `block_in_place`; cloud yok, sadece loopback; `fallback: true` varsayılan.
 
 ## Rakip MCP Araç Haritası (2026-08-03)
 Üç kamp: (A) tool-schema proxy, (B) içerik sıkıştırma/filtre, (C) cache+memory+smart wrappers.
@@ -34,3 +36,4 @@
 - GitHub remote + `NPM_TOKEN` secret; `OWNER/Compendium` placeholder’ı gerçek repo ile değiştir.
 - İlk `v0.1.0` release oluştur.
 - İsteğe bağlı: HTTP e2e smoke.
+- İsteğe bağlı sonraki SLM: `rerank_chunks`, akıllı `prune_history`.

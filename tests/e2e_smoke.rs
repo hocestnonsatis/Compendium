@@ -121,6 +121,42 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         .await?;
     assert_ok(&summarize, "summarize");
 
+    // summarize_smart / filter_relevant (heuristic fallback without LOCAL_LLM_URL)
+    let smart = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "summarize_smart",
+                "text": "# Intro\nEnough detail for a hierarchical outline summary to be useful here.\n## Setup\nInstall deps and configure the environment carefully.",
+                "smart": { "max_tokens": 256, "fallback": true }
+            }))),
+        )
+        .await?;
+    assert_ok(&smart, "summarize_smart");
+    let smart_result = gateway_result(&smart);
+    assert_eq!(smart_result.get("backend"), Some(&json!("heuristic")));
+
+    let relevant = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "filter_relevant",
+                "text": "INFO boot\nERROR auth token expired\nDEBUG spinner\nWARN auth retry",
+                "query": "auth token",
+                "smart": { "max_tokens": 128, "fallback": true }
+            }))),
+        )
+        .await?;
+    assert_ok(&relevant, "filter_relevant");
+    let relevant_result = gateway_result(&relevant);
+    assert_eq!(relevant_result.get("backend"), Some(&json!("heuristic")));
+    let relevant_content = relevant_result
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    assert!(
+        relevant_content.to_lowercase().contains("auth"),
+        "unexpected filter_relevant: {relevant_result}"
+    );
+
     // chunk + resolve
     let chunk = client
         .call_tool(
