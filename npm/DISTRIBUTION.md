@@ -109,7 +109,7 @@ After publish:
 ## Publish (automated)
 
 1. Set GitHub repo secret `NPM_TOKEN` (npm automation token with publish rights).
-2. Replace `OWNER/Compendium` in `package.json` once the remote exists (CI also rewrites from `GITHUB_REPOSITORY`).
+2. Repo defaults to `hocestnonsatis/Compendium` (CI also rewrites package metadata from `GITHUB_REPOSITORY`).
 3. Keep versions aligned in `Cargo.toml`, root `package.json` (+ optionalDependencies), and `npm/platforms/*/package.json`.
 4. Tag and create a GitHub Release:
 

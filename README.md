@@ -47,14 +47,22 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `compress` | Dense representation of text/code/logs | `text`, `compress` |
 | `compress_output` | Domain-aware stdout/stderr scrub (git, cargo, npm, docker, …) | `text`, `output` |
 | `summarize` | Hierarchical summary (conversation / file tree / outline) | `text`, `summarize` |
+| `summarize_smart` | Local-SLM dense summary (heuristic fallback if unset/fails) | `text`, `smart?`, `summarize?` |
+| `filter_relevant` | Query-aware keep of relevant lines (local SLM + heuristic fallback) | `text`, `query`, `smart?` |
 | `prune_history` | Drop filler / compress older chat turns | `text` or `messages`, `prune` |
 | `chunk` | Split into `cmp://` chunks (session-cached) | `text`, `chunk` |
 | `resolve` | Fetch chunk content by id | `id` (+ optional `map` / `text`) |
 | `count_tokens` | Measure tokens | `text` |
-| `stats` | Session savings report | `reset?` |
+| `stats` | Session savings + latency/bypass/backend telemetry | `reset?` |
 | `cache_store` | Park bulky payload outside the prompt | `text`, `cache` |
 | `cache_get` | Retrieve by key | `key` |
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
+| `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
+| `rerank` | BM25-rank candidates / chunks for a query | `query`, `items` or `text` or chunk `map`, `rerank?` |
+
+Optional on most text actions: `sanitize_input: true` scrubs before processing. Soft payloads under `COMPENDIUM_SIGNAL_MIN_CHARS` (default 1000) bypass `compress` / `summarize` / `summarize_smart` unless `force: true`.
+
+`filter` accepts optional `query` (top-level or `filter.query`) for BM25 line keep. `prune_history` supports `prune.strategy: "afm"` (Critical / Thematic / Distant tiers; distant blob cached for `cache_get`).
 
 Example:
 
@@ -85,6 +93,8 @@ src/
     filter.rs
     compress.rs
     summarize.rs
+    smart.rs           # summarize_smart + filter_relevant
+    local_llm.rs       # OpenAI-compatible local SLM client
     chunk.rs           # chunk + resolve
     cache.rs           # session key/value cache
     stats.rs           # session savings counters
@@ -170,6 +180,11 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_MAX_BLANK_LINES` | `1` | Blank-line collapse limit |
 | `COMPENDIUM_SIMILARITY_THRESHOLD` | `0.85` | Jaccard line-dedupe threshold |
 | `COMPENDIUM_HTTP_BIND` | `127.0.0.1:8788` | Default HTTP listen address |
+| `COMPENDIUM_LOCAL_LLM_URL` | _(unset)_ | OpenAI-compatible base URL (e.g. `http://127.0.0.1:11434/v1` or `http://127.0.0.1:13305/api/v1`). Enables smart actions. |
+| `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id accepted by the local server |
+| `COMPENDIUM_LOCAL_LLM_API_KEY` | _(unset)_ | Optional bearer token for locked loopback servers |
+| `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
+| `COMPENDIUM_SIGNAL_MIN_CHARS` | `1000` | Bypass compress/summarize below this length (`0` disables) |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 
 ## Example tool calls
@@ -222,20 +237,55 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 
 Prefer the returned `index_text` in the model context; pull individual chunk contents by id only when needed.
 
+**Query-aware filter (local SLM or heuristic fallback)**
+
+```json
+{
+  "action": "filter_relevant",
+  "text": "... noisy cargo/test log ...",
+  "query": "why did the auth tests fail",
+  "smart": { "max_tokens": 512, "fallback": true }
+}
+```
+
+Without `COMPENDIUM_LOCAL_LLM_URL`, `summarize_smart` / `filter_relevant` automatically use heuristics and set `backend: "heuristic"` plus `fallback_reason` in the result.
+
+## Local small language model
+
+Smart actions call a **loopback-only** OpenAI-compatible chat endpoint — never a cloud API. `COMPENDIUM_LOCAL_LLM_URL` must be `127.0.0.1`, `::1`, or `localhost` (SSRF guard). Requests use `temperature=0` and `seed=0` for stable outputs. Point Compendium at Ollama, Lemonade, or llama.cpp:
+
+```json
+{
+  "mcpServers": {
+    "compendium": {
+      "command": "npx",
+      "args": ["-y", "compendium-mcp"],
+      "env": {
+        "COMPENDIUM_LOCAL_LLM_URL": "http://127.0.0.1:11434/v1",
+        "COMPENDIUM_LOCAL_LLM_MODEL": "qwen2.5:3b"
+      }
+    }
+  }
+}
+```
+
+Lemonade example: `COMPENDIUM_LOCAL_LLM_URL=http://127.0.0.1:13305/api/v1` and `COMPENDIUM_LOCAL_LLM_MODEL=Qwen3-4B-GGUF`.
+
 ## Develop / test
 
 ```bash
 cargo test
 cargo test --features real-tokens
+cargo test --features http --test http_smoke
 cargo test --test e2e_smoke
 cargo run --features http -- http 127.0.0.1:8788
 ```
 
-`e2e_smoke` spawns `CARGO_BIN_EXE_compendium`, completes the MCP initialize handshake over stdio, lists tools, then calls filter → compress → summarize → chunk.
+`e2e_smoke` spawns `CARGO_BIN_EXE_compendium`, completes the MCP initialize handshake over stdio, lists tools, then calls gateway actions. `http_smoke` (requires `--features http`) exercises streamable HTTP in-process.
 
 ## Design notes
 
-- **Deterministic pipeline** — no outbound LLM calls; safe for offline / air-gapped agents.
+- **Deterministic by default** — heuristic pipeline needs no network; smart actions only call a configured **local** OpenAI-compatible URL and fall back to heuristics when unset or failing.
 - **Token backends** — fast heuristic by default; opt into exact BPE with `real-tokens`.
 - **Zero stdout pollution** (stdio mode) — tracing goes to stderr so JSON-RPC framing stays clean.
 - **Release profile** — LTO + stripped binary for low footprint.

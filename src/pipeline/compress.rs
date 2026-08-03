@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::pipeline::filter::{filter, FilterOptions};
+use crate::pipeline::signal::{bypass_reason, should_bypass_signal};
 use crate::pipeline::tokens::estimate_tokens;
 use crate::pipeline::TokenMetrics;
 
@@ -28,6 +29,9 @@ pub struct CompressOptions {
     /// Hint about content kind for specialized heuristics.
     #[serde(default)]
     pub content_type: ContentType,
+    /// When true, skip the signal-to-call short-input bypass.
+    #[serde(default)]
+    pub force: bool,
 }
 
 fn default_true() -> bool {
@@ -42,6 +46,7 @@ impl Default for CompressOptions {
             extract_entities: true,
             prefilter: true,
             content_type: ContentType::Auto,
+            force: false,
         }
     }
 }
@@ -65,11 +70,26 @@ pub struct CompressResult {
     pub content: String,
     pub metrics: TokenMetrics,
     pub entities: Vec<String>,
+    /// True when input was below the signal threshold and left unchanged.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bypassed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bypass_reason: Option<String>,
 }
 
 /// Produce a token-optimized dense representation of `input`.
 pub fn compress(input: &str, options: &CompressOptions, config: &Config) -> CompressResult {
     let original_tokens = estimate_tokens(input, config);
+
+    if should_bypass_signal(input, config, options.force) {
+        return CompressResult {
+            content: input.to_string(),
+            metrics: TokenMetrics::new(original_tokens, original_tokens),
+            entities: Vec::new(),
+            bypassed: true,
+            bypass_reason: Some(bypass_reason(config)),
+        };
+    }
 
     let mut working = if options.prefilter {
         let filtered = filter(
@@ -130,6 +150,8 @@ pub fn compress(input: &str, options: &CompressOptions, config: &Config) -> Comp
         content: working,
         metrics: TokenMetrics::new(original_tokens, result_tokens),
         entities,
+        bypassed: false,
+        bypass_reason: None,
     }
 }
 
@@ -422,18 +444,34 @@ mod tests {
             &CompressOptions {
                 content_type: ContentType::Log,
                 max_tokens: Some(200),
+                force: true,
                 ..Default::default()
             },
             &Config::default(),
         );
         assert!(result.content.contains("×3"));
         assert!(result.metrics.result_tokens < result.metrics.original_tokens);
+        assert!(!result.bypassed);
     }
 
     #[test]
     fn extracts_urls_and_paths() {
         let input = "see https://example.com/docs and /home/user/proj/src/main.rs for details";
-        let result = compress(input, &CompressOptions::default(), &Config::default());
+        let result = compress(
+            input,
+            &CompressOptions {
+                force: true,
+                ..Default::default()
+            },
+            &Config::default(),
+        );
         assert!(!result.entities.is_empty());
+    }
+
+    #[test]
+    fn bypasses_short_input_by_default() {
+        let result = compress("tiny", &CompressOptions::default(), &Config::default());
+        assert!(result.bypassed);
+        assert_eq!(result.content, "tiny");
     }
 }

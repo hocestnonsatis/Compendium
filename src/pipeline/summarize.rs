@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
+use crate::pipeline::signal::{bypass_reason, should_bypass_signal};
 use crate::pipeline::tokens::estimate_tokens;
 use crate::pipeline::TokenMetrics;
 
@@ -20,6 +21,9 @@ pub struct SummarizeOptions {
     /// Max bullet points per section.
     #[serde(default = "default_bullets")]
     pub max_bullets_per_section: usize,
+    /// When true, skip the signal-to-call short-input bypass.
+    #[serde(default)]
+    pub force: bool,
 }
 
 fn default_depth() -> usize {
@@ -36,6 +40,7 @@ impl Default for SummarizeOptions {
             max_tokens: None,
             mode: SummarizeMode::Auto,
             max_bullets_per_section: 8,
+            force: false,
         }
     }
 }
@@ -57,6 +62,11 @@ pub struct SummarizeResult {
     pub summary: String,
     pub sections: Vec<SummarySection>,
     pub metrics: TokenMetrics,
+    /// True when input was below the signal threshold and left unchanged.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bypassed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bypass_reason: Option<String>,
 }
 
 /// One node in the summary hierarchy.
@@ -71,6 +81,17 @@ pub struct SummarySection {
 /// Build a hierarchical summary of `input`.
 pub fn summarize(input: &str, options: &SummarizeOptions, config: &Config) -> SummarizeResult {
     let original_tokens = estimate_tokens(input, config);
+
+    if should_bypass_signal(input, config, options.force) {
+        return SummarizeResult {
+            summary: input.to_string(),
+            sections: Vec::new(),
+            metrics: TokenMetrics::new(original_tokens, original_tokens),
+            bypassed: true,
+            bypass_reason: Some(bypass_reason(config)),
+        };
+    }
+
     let mode = detect_mode(input, &options.mode);
 
     let sections = match mode {
@@ -91,6 +112,8 @@ pub fn summarize(input: &str, options: &SummarizeOptions, config: &Config) -> Su
         summary,
         sections,
         metrics: TokenMetrics::new(original_tokens, result_tokens),
+        bypassed: false,
+        bypass_reason: None,
     }
 }
 
@@ -459,10 +482,14 @@ Install dependencies and configure the environment carefully.
 ## Usage
 Run the binary with stdio transport enabled always.
 "#;
-        let result = summarize(input, &SummarizeOptions::default(), &Config::default());
+        let result = summarize(input, &SummarizeOptions {
+            force: true,
+            ..Default::default()
+        }, &Config::default());
         assert!(result.summary.contains("Intro"));
         assert!(!result.sections.is_empty());
         assert!(result.metrics.result_tokens > 0);
+        assert!(!result.bypassed);
     }
 
     #[test]
@@ -472,10 +499,18 @@ Run the binary with stdio transport enabled always.
             input,
             &SummarizeOptions {
                 mode: SummarizeMode::Conversation,
+                force: true,
                 ..Default::default()
             },
             &Config::default(),
         );
         assert!(result.summary.to_lowercase().contains("conversation"));
+    }
+
+    #[test]
+    fn bypasses_short_input_by_default() {
+        let result = summarize("hi", &SummarizeOptions::default(), &Config::default());
+        assert!(result.bypassed);
+        assert_eq!(result.summary, "hi");
     }
 }
