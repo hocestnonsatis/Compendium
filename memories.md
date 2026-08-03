@@ -19,6 +19,7 @@
 - Güncelleme: 2026-08-03 — PR #1 merge → `master`; tag/release `v0.1.0` oluşturuldu.
 - Güncelleme: 2026-08-03 — npm: önce local publish (`NPM_TOKEN` eski); paket görününce OIDC dashboard’dan. Pack fix: `bin/.gitignore` içinde `!compendium` / `!compendium.exe`.
 - Güncelleme: 2026-08-03 — `compendium-mcp@0.1.0` + platform paketleri local publish (darwin-x64 henüz yok). CI → Trusted Publishing OIDC (`release.yml`, `NPM_TOKEN` yok).
+- Güncelleme: 2026-08-03 — `v0.1.1` release: OIDC publish smoke + darwin-x64 (macos-14 cross).
 
 ## Tercihler
 - Dil: Rust; ana dalda çalış.
