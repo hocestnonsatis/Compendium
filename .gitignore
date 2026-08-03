@@ -10,3 +10,6 @@ npm/platforms/*/bin/compendium.exe
 
 # Local Cursor MCP paths
 .cursor/mcp.json
+
+# Session notes (local agent context — not for public repo)
+memories.md

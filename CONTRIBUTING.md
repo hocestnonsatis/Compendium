@@ -43,7 +43,7 @@ npm packaging notes: [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md).
 
 1. Describe **why** the change exists (not only what files moved).
 2. Note how you tested (`cargo test`, e2e smoke, manual MCP call).
-3. Update `README.md` / `memories.md` only when user-facing behavior or durable project decisions change.
+3. Update `README.md` only when user-facing behavior changes.
 4. For releases: versions stay aligned across `Cargo.toml`, root `package.json`, and `npm/platforms/*/package.json`. CI publishes via Trusted Publishing (OIDC) on GitHub Release tags.
 
 ## Issues
