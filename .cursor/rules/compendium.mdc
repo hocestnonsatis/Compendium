@@ -1,0 +1,28 @@
+---
+description: Prefer the Compendium MCP gateway to shrink noisy/large context before pasting it into the conversation
+alwaysApply: true
+---
+
+# Compendium token hygiene
+
+When tool output, logs, JSON, or pasted blobs are large or noisy, call the MCP tool `compendium` with an `action` instead of dumping raw text into context.
+
+## Quick map
+
+| Situation | Call |
+|-----------|------|
+| ANSI / boilerplate / noisy logs | `action: "filter"` + `text` |
+| git/cargo/npm/docker/kubectl stdout | `action: "compress_output"` + `text` |
+| Dense rewrite of code/logs/JSON | `action: "compress"` + `text` |
+| Long chat / transcript | `action: "prune_history"` or `summarize` |
+| Huge file/corpus you may revisit | `action: "chunk"` then later `resolve` with `id` |
+| Park bulky payload outside prompt | `action: "cache_store"` → keep only returned `key` |
+| Measure size / savings | `action: "count_tokens"` or `stats` |
+
+## Rules of thumb
+
+- If a single tool result is likely >~400 tokens of noise, run `filter` or `compress_output` first.
+- Prefer `cache_store` over re-pasting the same large blob across turns.
+- Prefer `chunk` index text over the full corpus; `resolve` only the ids you need.
+- Do not invent other tool names (`compendium_filter`, etc.) — there is only `compendium`.
+- Response shape: `{ ok, action, result_json, error? }`. Parse `result_json` as JSON for the action payload.

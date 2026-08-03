@@ -1,0 +1,3 @@
+# Placeholder so git keeps the directory; CI places the real binary here.
+*
+!.gitignore

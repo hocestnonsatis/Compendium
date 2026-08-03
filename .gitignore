@@ -1,0 +1,9 @@
+/target
+**/*.rs.bk
+.DS_Store
+.env
+*.swp
+node_modules/
+*.tgz
+npm/platforms/*/bin/compendium
+npm/platforms/*/bin/compendium.exe

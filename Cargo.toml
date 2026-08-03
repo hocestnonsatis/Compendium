@@ -1,0 +1,59 @@
+[package]
+name = "compendium"
+version = "0.1.0"
+edition = "2021"
+description = "MCP server that compresses, summarizes, and filters context to minimize LLM token usage"
+license = "MIT"
+readme = "README.md"
+keywords = ["mcp", "llm", "tokens", "compression", "context"]
+categories = ["command-line-utilities", "text-processing"]
+
+[lib]
+name = "compendium"
+path = "src/lib.rs"
+
+[[bin]]
+name = "compendium"
+path = "src/main.rs"
+
+[features]
+default = []
+# Exact BPE token counts via tiktoken-rs (cl100k_base / o200k_base).
+real-tokens = ["dep:tiktoken-rs"]
+# Streamable HTTP / SSE transport (axum + rmcp StreamableHttpService).
+http = [
+    "dep:axum",
+    "dep:tokio-util",
+    "rmcp/transport-streamable-http-server",
+    "tokio/net",
+    "tokio/signal",
+]
+
+[dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8", optional = true }
+regex = "1.13.1"
+rmcp = { version = "3.1.0", features = ["server", "transport-io", "macros", "schemars"] }
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.19"
+tiktoken-rs = { version = "0.12", optional = true }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
+tokio-util = { version = "0.7", optional = true, features = ["rt"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+unicode-segmentation = "1.13.3"
+
+[dev-dependencies]
+# Client + child-process transport for E2E smoke tests (features merge with [dependencies]).
+rmcp = { version = "3.1.0", features = ["client", "transport-child-process"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "sync", "process", "time"] }
+tokio-test = "0.4.5"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

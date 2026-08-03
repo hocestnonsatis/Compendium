@@ -1,0 +1,11 @@
+{
+  "name": "compendium-mcp-linux-x64",
+  "version": "0.1.0",
+  "description": "Linux x64 native binary for compendium-mcp",
+  "license": "MIT",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "engines": { "node": ">=18" },
+  "files": ["bin/", "package.json"],
+  "preferUnplugged": true
+}

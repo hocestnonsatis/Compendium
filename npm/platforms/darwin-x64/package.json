@@ -1,0 +1,11 @@
+{
+  "name": "compendium-mcp-darwin-x64",
+  "version": "0.1.0",
+  "description": "macOS x64 native binary for compendium-mcp",
+  "license": "MIT",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "engines": { "node": ">=18" },
+  "files": ["bin/", "package.json"],
+  "preferUnplugged": true
+}

@@ -1,0 +1,231 @@
+name: Release
+
+# Trigger: publish a GitHub Release (tag vX.Y.Z) OR workflow_dispatch with a tag.
+# Builds native binaries (real-tokens + http), uploads release assets, publishes
+# platform optionalDependency packages + the main compendium-mcp wrapper to npm.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build/publish (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write # npm provenance
+
+env:
+  CARGO_TERM_COLOR: always
+  # Production npm binary ships full feature set.
+  CARGO_FEATURES: real-tokens,http
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$TAG version=$VERSION"
+
+  build:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+            platform: darwin-arm64
+            asset: compendium-darwin-arm64
+            bin: compendium
+          - target: x86_64-apple-darwin
+            os: macos-13
+            platform: darwin-x64
+            asset: compendium-darwin-x64
+            bin: compendium
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            platform: linux-x64
+            asset: compendium-linux-x64
+            bin: compendium
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            platform: linux-arm64
+            asset: compendium-linux-arm64
+            bin: compendium
+            cross: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            platform: win32-x64
+            asset: compendium-win32-x64.exe
+            bin: compendium.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (linux aarch64)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (native)
+        if: ${{ !matrix.cross }}
+        shell: bash
+        run: |
+          cargo build --release --target ${{ matrix.target }} --features "$CARGO_FEATURES"
+
+      - name: Build (cross)
+        if: matrix.cross
+        shell: bash
+        run: |
+          cross build --release --target ${{ matrix.target }} --features "$CARGO_FEATURES"
+
+      - name: Stage binary
+        shell: bash
+        run: |
+          SRC="target/${{ matrix.target }}/release/${{ matrix.bin }}"
+          test -f "$SRC"
+          mkdir -p "npm/platforms/${{ matrix.platform }}/bin"
+          DEST="npm/platforms/${{ matrix.platform }}/bin/${{ matrix.bin }}"
+          cp "$SRC" "$DEST"
+          if [[ "${{ matrix.bin }}" != *.exe ]]; then
+            chmod +x "$DEST"
+          fi
+          # Release asset (flat name for download fallback)
+          cp "$SRC" "${{ matrix.asset }}"
+          ls -lh "${{ matrix.asset }}" "$DEST"
+
+      - name: Sync platform package version
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const platform = process.env.PLATFORM;
+          const version = process.env.VERSION;
+          const pkgPath = `npm/platforms/${platform}/package.json`;
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          pkg.version = version;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          console.log(`set ${pkg.name}@${version}`);
+          NODE
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ needs.meta.outputs.version }}
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          files: ${{ matrix.asset }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload platform artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-${{ matrix.platform }}
+          path: npm/platforms/${{ matrix.platform }}/
+          if-no-files-found: error
+
+  publish-npm:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: platform-*
+          path: npm/platforms-artifacts
+
+      - name: Assemble platform packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          for dir in npm/platforms-artifacts/platform-*; do
+            name="$(basename "$dir")"          # platform-darwin-arm64
+            platform="${name#platform-}"      # darwin-arm64
+            dest="npm/platforms/$platform"
+            mkdir -p "$dest"
+            cp -a "$dir"/. "$dest"/
+            # Ensure package.json version matches release
+            node -e "
+              const fs=require('fs');
+              const p='$dest/package.json';
+              const j=JSON.parse(fs.readFileSync(p,'utf8'));
+              j.version='$VERSION';
+              fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');
+              console.log(j.name, j.version);
+            "
+            test -e "$dest/bin/compendium" || test -e "$dest/bin/compendium.exe"
+          done
+
+      - name: Sync root package.json version + optionalDependencies
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.version = version;
+          for (const key of Object.keys(pkg.optionalDependencies || {})) {
+            pkg.optionalDependencies[key] = version;
+          }
+          // Prefer the real GitHub repo when available
+          const repo = process.env.GITHUB_REPOSITORY;
+          if (repo && pkg.repository) {
+            pkg.repository.url = `git+https://github.com/${repo}.git`;
+            pkg.bugs = { url: `https://github.com/${repo}/issues` };
+            pkg.homepage = `https://github.com/${repo}#readme`;
+          }
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          console.log(`root ${pkg.name}@${version}`);
+          NODE
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+
+      - name: Publish platform packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            echo "Publishing npm/platforms/$platform …"
+            npm publish --access public "./npm/platforms/$platform"
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish main wrapper
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
