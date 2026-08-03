@@ -1,5 +1,6 @@
 //! Token-optimization pipeline primitives.
 
+pub mod bm25;
 pub mod cache;
 pub mod chunk;
 pub mod compress;
@@ -7,6 +8,9 @@ pub mod filter;
 pub mod local_llm;
 pub mod output;
 pub mod prune;
+pub mod rerank;
+pub mod sanitize;
+pub mod signal;
 pub mod smart;
 pub mod stats;
 pub mod summarize;

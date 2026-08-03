@@ -33,6 +33,8 @@ pub struct FilterOptions {
     pub drop_patterns: Vec<String>,
     /// Soft cap on output tokens (best-effort truncation after filtering).
     pub max_tokens: Option<usize>,
+    /// Optional BM25 query: keep lines relevant to this query (after other filters).
+    pub query: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -49,6 +51,7 @@ impl Default for FilterOptions {
             keep_patterns: Vec::new(),
             drop_patterns: Vec::new(),
             max_tokens: None,
+            query: None,
         }
     }
 }
@@ -119,7 +122,17 @@ pub fn filter(input: &str, options: &FilterOptions, config: &Config) -> FilterRe
 
     let mut content = out_lines.join("\n");
 
-    if let Some(max) = options.max_tokens {
+    if let Some(query) = options
+        .query
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let max = options.max_tokens.unwrap_or(config.default_max_tokens);
+        content = crate::pipeline::bm25::filter_lines_bm25(&content, query, max, |s| {
+            estimate_tokens(s, config)
+        });
+    } else if let Some(max) = options.max_tokens {
         content = truncate_to_tokens(&content, max, config);
     }
 

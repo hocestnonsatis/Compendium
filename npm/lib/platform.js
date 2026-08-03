@@ -52,7 +52,7 @@ function githubRepo() {
   return (
     process.env.COMPENDIUM_GITHUB_REPO ||
     process.env.GITHUB_REPOSITORY ||
-    'OWNER/Compendium'
+    'hocestnonsatis/Compendium'
   );
 }
 

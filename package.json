@@ -14,12 +14,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/Compendium.git"
+    "url": "git+https://github.com/hocestnonsatis/Compendium.git"
   },
   "bugs": {
-    "url": "https://github.com/OWNER/Compendium/issues"
+    "url": "https://github.com/hocestnonsatis/Compendium/issues"
   },
-  "homepage": "https://github.com/OWNER/Compendium#readme",
+  "homepage": "https://github.com/hocestnonsatis/Compendium#readme",
   "engines": {
     "node": ">=18"
   },

@@ -1,6 +1,7 @@
 //! MCP tool surface for Compendium — single gateway tool with `action` dispatch.
 
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use rmcp::{
     handler::server::wrapper::{Json, Parameters},
@@ -18,6 +19,8 @@ use crate::pipeline::{
     filter::{filter, FilterOptions},
     output::{compress_output, CompressOutputOptions},
     prune::{parse_history_input, prune_history, HistoryMessage, PruneOptions},
+    rerank::{parse_rerank_items, rerank, RerankItem, RerankOptions},
+    sanitize::{sanitize, SanitizeOptions},
     smart::{filter_relevant, summarize_smart, SmartOptions},
     stats::SessionStats,
     summarize::{summarize, SummarizeOptions},
@@ -62,13 +65,41 @@ impl CompendiumServer {
 
     fn record(&self, action: &str, metrics: &TokenMetrics) {
         if let Ok(mut state) = self.state.lock() {
-            state.stats.record(&format!("compendium:{action}"), metrics);
+            state
+                .stats
+                .record(&format!("compendium:{action}"), metrics);
         }
     }
 
     fn record_call(&self, action: &str) {
         if let Ok(mut state) = self.state.lock() {
-            state.stats.record_count_only(&format!("compendium:{action}"));
+            state
+                .stats
+                .record_count_only(&format!("compendium:{action}"));
+        }
+    }
+
+    /// Attach latency / bypass / backend flags after an action finishes (does not double-count calls).
+    fn attach_telemetry(&self, action: &str, latency_ms: f64, result: Option<&Value>) {
+        if let Ok(mut state) = self.state.lock() {
+            let tool = format!("compendium:{action}");
+            let bypassed = result
+                .and_then(|v| v.get("bypassed"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let backend = result
+                .and_then(|v| v.get("backend"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            // Session-level latency + flags (calls already counted by record*).
+            SessionStats::attach_post_call(
+                &mut state.stats,
+                &tool,
+                latency_ms,
+                bypassed,
+                backend.as_deref(),
+            );
         }
     }
 
@@ -90,6 +121,7 @@ impl CompendiumServer {
     fn dispatch(&self, params: GatewayParams) -> GatewayEnvelope {
         let action = params.action;
         let action_name = action.as_str();
+        let started = Instant::now();
 
         let outcome = match action {
             CompendiumAction::Filter => self.act_filter(params),
@@ -106,21 +138,31 @@ impl CompendiumServer {
             CompendiumAction::CacheStore => self.act_cache_store(params),
             CompendiumAction::CacheGet => self.act_cache_get(params),
             CompendiumAction::CacheInvalidate => self.act_cache_invalidate(params),
+            CompendiumAction::Sanitize => self.act_sanitize(params),
+            CompendiumAction::Rerank => self.act_rerank(params),
         };
 
+        let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
+
         match outcome {
-            Ok(result) => GatewayEnvelope {
-                ok: true,
-                action: action_name.into(),
-                result_json: result.to_string(),
-                error: None,
-            },
-            Err(error) => GatewayEnvelope {
-                ok: false,
-                action: action_name.into(),
-                result_json: "{}".into(),
-                error: Some(error),
-            },
+            Ok(result) => {
+                self.attach_telemetry(action_name, latency_ms, Some(&result));
+                GatewayEnvelope {
+                    ok: true,
+                    action: action_name.into(),
+                    result_json: result.to_string(),
+                    error: None,
+                }
+            }
+            Err(error) => {
+                self.attach_telemetry(action_name, latency_ms, None);
+                GatewayEnvelope {
+                    ok: false,
+                    action: action_name.into(),
+                    result_json: "{}".into(),
+                    error: Some(error),
+                }
+            }
         }
     }
 
@@ -134,16 +176,36 @@ impl CompendiumServer {
             .ok_or_else(|| "missing required field `text` for this action".into())
     }
 
+    /// Optionally scrub secrets/IPI from text before the main action runs.
+    fn maybe_sanitize_text(&self, text: String, params: &GatewayParams) -> String {
+        if params.sanitize_input.unwrap_or(false) {
+            let opts = params.sanitize.clone().unwrap_or_default();
+            sanitize(&text, &opts, &self.config).content
+        } else {
+            text
+        }
+    }
+
     fn act_filter(&self, params: GatewayParams) -> Result<Value, String> {
-        let text = Self::require_text(&params)?;
-        let options = params.filter.unwrap_or_default();
+        let text = self.maybe_sanitize_text(Self::require_text(&params)?, &params);
+        let mut options = params.filter.unwrap_or_default();
+        if options.query.is_none() {
+            if let Some(q) = params
+                .query
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                options.query = Some(q.to_string());
+            }
+        }
         let result = filter(&text, &options, &self.config);
         self.record("filter", &result.metrics);
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
 
     fn act_compress(&self, params: GatewayParams) -> Result<Value, String> {
-        let text = Self::require_text(&params)?;
+        let text = self.maybe_sanitize_text(Self::require_text(&params)?, &params);
         let options = params.compress.unwrap_or_default();
         let result = compress(&text, &options, &self.config);
         self.record("compress", &result.metrics);
@@ -151,7 +213,7 @@ impl CompendiumServer {
     }
 
     fn act_compress_output(&self, params: GatewayParams) -> Result<Value, String> {
-        let text = Self::require_text(&params)?;
+        let text = self.maybe_sanitize_text(Self::require_text(&params)?, &params);
         let options = params.output.unwrap_or_default();
         let result = compress_output(&text, &options, &self.config);
         self.record("compress_output", &result.metrics);
@@ -159,7 +221,7 @@ impl CompendiumServer {
     }
 
     fn act_summarize(&self, params: GatewayParams) -> Result<Value, String> {
-        let text = Self::require_text(&params)?;
+        let text = self.maybe_sanitize_text(Self::require_text(&params)?, &params);
         let options = params.summarize.unwrap_or_default();
         let result = summarize(&text, &options, &self.config);
         self.record("summarize", &result.metrics);
@@ -167,7 +229,7 @@ impl CompendiumServer {
     }
 
     fn act_summarize_smart(&self, params: GatewayParams) -> Result<Value, String> {
-        let text = Self::require_text(&params)?;
+        let text = self.maybe_sanitize_text(Self::require_text(&params)?, &params);
         let smart = params.smart.unwrap_or_default();
         let summarize_opts = params.summarize.unwrap_or_default();
         let result = summarize_smart(&text, &smart, &summarize_opts, &self.config)?;
@@ -176,7 +238,7 @@ impl CompendiumServer {
     }
 
     fn act_filter_relevant(&self, params: GatewayParams) -> Result<Value, String> {
-        let text = Self::require_text(&params)?;
+        let text = self.maybe_sanitize_text(Self::require_text(&params)?, &params);
         let mut smart = params.smart.unwrap_or_default();
         let query = params
             .query
@@ -193,6 +255,14 @@ impl CompendiumServer {
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
 
+    fn act_sanitize(&self, params: GatewayParams) -> Result<Value, String> {
+        let text = Self::require_text(&params)?;
+        let options = params.sanitize.unwrap_or_default();
+        let result = sanitize(&text, &options, &self.config);
+        self.record("sanitize", &result.metrics);
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
+
     fn act_prune(&self, params: GatewayParams) -> Result<Value, String> {
         let messages = if let Some(msgs) = params.messages {
             msgs
@@ -205,7 +275,66 @@ impl CompendiumServer {
         };
         let options = params.prune.unwrap_or_default();
         let result = prune_history(&messages, &options, &self.config);
+
+        if let (Some(key), Some(payload)) = (&result.distant_key, &result.distant_payload) {
+            let tokens = crate::pipeline::tokens::estimate_tokens(payload, &self.config);
+            if let Ok(mut state) = self.state.lock() {
+                state.cache.put_raw(key.clone(), payload.clone(), tokens);
+            }
+        }
+
         self.record("prune_history", &result.metrics);
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
+
+    fn act_rerank(&self, params: GatewayParams) -> Result<Value, String> {
+        let query = params
+            .query
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "rerank requires `query`".to_string())?;
+
+        let items = if let Some(items) = params.items {
+            if items.is_empty() {
+                return Err("rerank `items` must be non-empty".into());
+            }
+            items
+        } else if let Some(text) = params.text.as_deref() {
+            parse_rerank_items(text)?
+        } else if let Some(map) = params.map.as_ref() {
+            // Accept a prior chunk map object: extract chunks[].{id,content}
+            let chunks = map
+                .get("chunks")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| "rerank `map` must contain a `chunks` array".to_string())?;
+            let mut out = Vec::new();
+            for c in chunks {
+                let text = c
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if text.is_empty() {
+                    continue;
+                }
+                let id = c
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                out.push(RerankItem { id, text });
+            }
+            if out.is_empty() {
+                return Err("rerank `map.chunks` had no content".into());
+            }
+            out
+        } else {
+            return Err("rerank requires `items`, `text`, or chunk `map`".into());
+        };
+
+        let options = params.rerank.unwrap_or_default();
+        let result = rerank(query, &items, &options, &self.config);
+        self.record("rerank", &result.metrics);
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
 
@@ -372,6 +501,10 @@ pub enum CompendiumAction {
     CacheGet,
     /// Drop one cache key or clear the session cache.
     CacheInvalidate,
+    /// Redact secrets and neutralize Indirect Prompt Injection phrases.
+    Sanitize,
+    /// BM25-rank text chunks / candidates for a query.
+    Rerank,
 }
 
 impl CompendiumAction {
@@ -391,6 +524,8 @@ impl CompendiumAction {
             Self::CacheStore => "cache_store",
             Self::CacheGet => "cache_get",
             Self::CacheInvalidate => "cache_invalidate",
+            Self::Sanitize => "sanitize",
+            Self::Rerank => "rerank",
         }
     }
 }
@@ -441,6 +576,14 @@ pub struct GatewayParams {
     pub chunk: Option<ChunkOptions>,
     /// Options for `action=cache_store`.
     pub cache: Option<CacheStoreOptions>,
+    /// Options for `action=sanitize` (also used when `sanitize_input` is true).
+    pub sanitize: Option<SanitizeOptions>,
+    /// When true, scrub secrets/IPI from `text` before the chosen action runs.
+    pub sanitize_input: Option<bool>,
+    /// Candidates for `action=rerank` (preferred over parsing `text`).
+    pub items: Option<Vec<RerankItem>>,
+    /// Options for `action=rerank`.
+    pub rerank: Option<RerankOptions>,
 }
 
 /// Gateway response envelope.
@@ -459,7 +602,7 @@ impl CompendiumServer {
     /// Token-optimization gateway — one tool, many actions via `action`.
     #[tool(
         name = "compendium",
-        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | summarize_smart | filter_relevant | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate. Pass text (or messages/key/id/query as required). Use filter/compress_output on noisy logs; summarize_smart/filter_relevant when a local SLM is configured (heuristic fallback otherwise); compress or cache_store for bulky blobs; prune_history/summarize for long chats; chunk+resolve for reference maps; count_tokens/stats to measure."
+        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | summarize_smart | filter_relevant | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate | sanitize | rerank. Pass text (or messages/key/id/query/items as required). Use filter(+query) or filter_relevant for BM25 keep; rerank to score chunks; prune_history with strategy=afm for tiered memory; sanitize on untrusted output; compress/summarize for bulky blobs."
     )]
     fn compendium(
         &self,
@@ -472,6 +615,6 @@ impl CompendiumServer {
 #[tool_handler(
     name = "compendium",
     version = "0.1.0",
-    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy tool/log output; action=filter_relevant with a query when you need query-aware keep; action=summarize_smart for denser local-SLM summaries (falls back to heuristics); action=compress or cache_store before pasting large blobs; action=summarize or prune_history for long histories; action=chunk then resolve for large corpora; action=count_tokens or stats to measure savings."
+    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy logs; action=filter(+query) or filter_relevant for BM25 query-aware keep; action=rerank with query+items for chunk ranking; action=prune_history with prune.strategy=afm for Adaptive Focus Memory; action=sanitize on untrusted payloads; action=summarize_smart when a local SLM is configured; action=compress or cache_store for bulky blobs; action=chunk then resolve/rerank for large corpora; action=count_tokens or stats to measure savings."
 )]
 impl ServerHandler for CompendiumServer {}

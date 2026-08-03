@@ -53,10 +53,16 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `chunk` | Split into `cmp://` chunks (session-cached) | `text`, `chunk` |
 | `resolve` | Fetch chunk content by id | `id` (+ optional `map` / `text`) |
 | `count_tokens` | Measure tokens | `text` |
-| `stats` | Session savings report | `reset?` |
+| `stats` | Session savings + latency/bypass/backend telemetry | `reset?` |
 | `cache_store` | Park bulky payload outside the prompt | `text`, `cache` |
 | `cache_get` | Retrieve by key | `key` |
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
+| `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
+| `rerank` | BM25-rank candidates / chunks for a query | `query`, `items` or `text` or chunk `map`, `rerank?` |
+
+Optional on most text actions: `sanitize_input: true` scrubs before processing. Soft payloads under `COMPENDIUM_SIGNAL_MIN_CHARS` (default 1000) bypass `compress` / `summarize` / `summarize_smart` unless `force: true`.
+
+`filter` accepts optional `query` (top-level or `filter.query`) for BM25 line keep. `prune_history` supports `prune.strategy: "afm"` (Critical / Thematic / Distant tiers; distant blob cached for `cache_get`).
 
 Example:
 
@@ -178,6 +184,7 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id accepted by the local server |
 | `COMPENDIUM_LOCAL_LLM_API_KEY` | _(unset)_ | Optional bearer token for locked loopback servers |
 | `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
+| `COMPENDIUM_SIGNAL_MIN_CHARS` | `1000` | Bypass compress/summarize below this length (`0` disables) |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 
 ## Example tool calls
@@ -245,7 +252,7 @@ Without `COMPENDIUM_LOCAL_LLM_URL`, `summarize_smart` / `filter_relevant` automa
 
 ## Local small language model
 
-Smart actions call a **loopback** OpenAI-compatible chat endpoint — never a cloud API. Point Compendium at Ollama, Lemonade, or llama.cpp:
+Smart actions call a **loopback-only** OpenAI-compatible chat endpoint — never a cloud API. `COMPENDIUM_LOCAL_LLM_URL` must be `127.0.0.1`, `::1`, or `localhost` (SSRF guard). Requests use `temperature=0` and `seed=0` for stable outputs. Point Compendium at Ollama, Lemonade, or llama.cpp:
 
 ```json
 {
@@ -269,11 +276,12 @@ Lemonade example: `COMPENDIUM_LOCAL_LLM_URL=http://127.0.0.1:13305/api/v1` and `
 ```bash
 cargo test
 cargo test --features real-tokens
+cargo test --features http --test http_smoke
 cargo test --test e2e_smoke
 cargo run --features http -- http 127.0.0.1:8788
 ```
 
-`e2e_smoke` spawns `CARGO_BIN_EXE_compendium`, completes the MCP initialize handshake over stdio, lists tools, then calls filter → compress → summarize → chunk.
+`e2e_smoke` spawns `CARGO_BIN_EXE_compendium`, completes the MCP initialize handshake over stdio, lists tools, then calls gateway actions. `http_smoke` (requires `--features http`) exercises streamable HTTP in-process.
 
 ## Design notes
 

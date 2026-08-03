@@ -11,19 +11,25 @@ pub mod http;
 pub mod pipeline;
 pub mod server;
 
-pub use config::{Config, LocalLlmConfig};
+pub use config::{Config, LocalLlmConfig, DEFAULT_SIGNAL_MIN_CHARS};
 pub use pipeline::{
     cache::{CacheGetResult, CacheInvalidateResult, CacheStoreOptions, CacheStoreResult},
     chunk::{chunk_with_refs, resolve_chunk, resolve_ref, ChunkMap, ChunkOptions, ResolveResult},
     compress::{compress, CompressOptions, CompressResult},
     filter::{filter, FilterOptions, FilterResult},
     output::{compress_output, CompressOutputOptions, CompressOutputResult},
-    prune::{parse_history_input, prune_history, HistoryMessage, PruneOptions, PruneResult},
+    prune::{
+        parse_history_input, prune_history, AfmTier, HistoryMessage, PruneOptions, PruneResult,
+        PruneStrategy,
+    },
+    rerank::{parse_rerank_items, rerank, RerankHit, RerankItem, RerankOptions, RerankResult},
+    sanitize::{sanitize, SanitizeFinding, SanitizeOptions, SanitizeResult},
+    signal::{bypass_reason, should_bypass_signal},
     smart::{
         filter_relevant, summarize_smart, SmartBackend, SmartFilterResult, SmartOptions,
         SmartSummarizeResult,
     },
-    stats::{SessionStats, ToolStats},
+    stats::{CallMeta, SessionStats, ToolStats},
     summarize::{summarize, SummarizeOptions, SummarizeResult},
     tokens::{
         count_tokens_detailed, estimate_tokens, token_backend, CountTokensResult, TokenBackend,

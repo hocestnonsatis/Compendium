@@ -110,6 +110,7 @@ pub fn compress_output(
             keep_patterns: Vec::new(),
             drop_patterns: domain_drop_patterns(&domain),
             max_tokens: None,
+            query: None,
         },
         config,
     );

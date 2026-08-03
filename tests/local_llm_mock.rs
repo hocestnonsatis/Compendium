@@ -48,9 +48,13 @@ async fn summarize_smart_uses_local_llm_when_configured() {
             &SmartOptions {
                 max_tokens: Some(128),
                 fallback: false,
+                force: true,
                 ..Default::default()
             },
-            &SummarizeOptions::default(),
+            &SummarizeOptions {
+                force: true,
+                ..Default::default()
+            },
             &config,
         )
     })
@@ -60,6 +64,7 @@ async fn summarize_smart_uses_local_llm_when_configured() {
 
     assert_eq!(result.backend, SmartBackend::LocalLlm);
     assert_eq!(result.model.as_deref(), Some("mock-model"));
+    assert!(result.deterministic);
     assert!(result.summary.contains("local model wrote this"));
 }
 
@@ -92,6 +97,7 @@ async fn filter_relevant_uses_local_llm_when_configured() {
             &SmartOptions {
                 max_tokens: Some(64),
                 fallback: false,
+                force: true,
                 ..Default::default()
             },
             &config,

@@ -2,6 +2,9 @@
 
 use std::env;
 
+/// Default character threshold for signal-to-call bypass (compress/summarize).
+pub const DEFAULT_SIGNAL_MIN_CHARS: usize = 1_000;
+
 /// Optional OpenAI-compatible local SLM endpoint.
 #[derive(Debug, Clone)]
 pub struct LocalLlmConfig {
@@ -57,6 +60,9 @@ pub struct Config {
     pub http_bind: String,
     /// Optional local small-language-model endpoint for smart actions.
     pub local_llm: LocalLlmConfig,
+    /// Character threshold for signal-to-call: compress/summarize bypass below this
+    /// (0 disables bypass). Default 1000.
+    pub signal_min_chars: usize,
 }
 
 impl Default for Config {
@@ -69,6 +75,7 @@ impl Default for Config {
             tokenizer: "cl100k_base".into(),
             http_bind: "127.0.0.1:8788".into(),
             local_llm: LocalLlmConfig::default(),
+            signal_min_chars: DEFAULT_SIGNAL_MIN_CHARS,
         }
     }
 }
@@ -130,6 +137,11 @@ impl Config {
                 if n > 0 {
                     cfg.local_llm.timeout_secs = n;
                 }
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_SIGNAL_MIN_CHARS") {
+            if let Ok(n) = v.parse::<usize>() {
+                cfg.signal_min_chars = n;
             }
         }
 

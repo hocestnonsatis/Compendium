@@ -49,7 +49,11 @@ unicode-segmentation = "1.13.3"
 
 [dev-dependencies]
 # Client + child-process transport for E2E smoke tests (features merge with [dependencies]).
-rmcp = { version = "3.1.0", features = ["client", "transport-child-process"] }
+rmcp = { version = "3.1.0", features = [
+    "client",
+    "transport-child-process",
+    "transport-streamable-http-client-reqwest",
+] }
 serde_json = "1.0.151"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "sync", "process", "time"] }
 tokio-test = "0.4.5"
