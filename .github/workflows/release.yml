@@ -16,7 +16,7 @@ on:
 
 permissions:
   contents: write
-  id-token: write # npm provenance
+  id-token: write # npm Trusted Publishing (OIDC) + provenance
 
 env:
   CARGO_TERM_COLOR: always
@@ -153,13 +153,20 @@ jobs:
   publish-npm:
     needs: [meta, build]
     runs-on: ubuntu-latest
+    # OIDC Trusted Publishing: no NPM_TOKEN. Configure each package on npmjs.com
+    # (Trusted Publisher → GitHub Actions → workflow filename `release.yml`).
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # Trusted Publishing needs Node ≥22.14 and npm ≥11.5.1
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
 
       - name: Download all platform artifacts
         uses: actions/download-artifact@v4
@@ -172,18 +179,25 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
+          REPO="${{ github.repository }}"
           for dir in npm/platforms-artifacts/platform-*; do
             name="$(basename "$dir")"          # platform-darwin-arm64
             platform="${name#platform-}"      # darwin-arm64
             dest="npm/platforms/$platform"
             mkdir -p "$dest"
             cp -a "$dir"/. "$dest"/
-            # Ensure package.json version matches release
+            # Ensure package.json version + repository match (OIDC/provenance)
             node -e "
               const fs=require('fs');
               const p='$dest/package.json';
               const j=JSON.parse(fs.readFileSync(p,'utf8'));
               j.version='$VERSION';
+              j.repository = {
+                type: 'git',
+                url: 'git+https://github.com/$REPO.git',
+              };
+              j.bugs = { url: 'https://github.com/$REPO/issues' };
+              j.homepage = 'https://github.com/$REPO#readme';
               fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');
               console.log(j.name, j.version);
             "
@@ -214,18 +228,20 @@ jobs:
         env:
           VERSION: ${{ needs.meta.outputs.version }}
 
-      - name: Publish platform packages
+      - name: Publish platform packages (OIDC)
         shell: bash
         run: |
           set -euo pipefail
+          npm --version
           for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
-            echo "Publishing npm/platforms/$platform …"
-            npm publish --access public "./npm/platforms/$platform"
+            dest="npm/platforms/$platform"
+            if [[ -e "$dest/bin/compendium" || -e "$dest/bin/compendium.exe" ]]; then
+              echo "Publishing $dest …"
+              npm publish --access public "$dest"
+            else
+              echo "Skipping $platform (no binary artifact)"
+            fi
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish main wrapper
+      - name: Publish main wrapper (OIDC)
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

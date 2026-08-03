@@ -106,20 +106,48 @@ After publish:
 }
 ```
 
-## Publish (automated)
+## Publish (automated — Trusted Publishing / OIDC)
 
-1. Set GitHub repo secret `NPM_TOKEN` (npm automation token with publish rights).
-2. Repo defaults to `hocestnonsatis/Compendium` (CI also rewrites package metadata from `GITHUB_REPOSITORY`).
-3. Keep versions aligned in `Cargo.toml`, root `package.json` (+ optionalDependencies), and `npm/platforms/*/package.json`.
-4. Tag and create a GitHub Release:
+No `NPM_TOKEN` secret. CI uses [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC).
+
+### 1. Dashboard (once per package)
+
+On each package’s **Settings → Trusted Publisher → GitHub Actions**:
+
+| Field | Value |
+|-------|--------|
+| Organization or user | `hocestnonsatis` |
+| Repository | `Compendium` |
+| Workflow filename | `release.yml` |
+| Environment | *(leave empty unless you add a GitHub Environment)* |
+| Allowed actions | `npm publish` |
+
+Packages to configure (same values on each):
+
+- https://www.npmjs.com/package/compendium-mcp/access
+- https://www.npmjs.com/package/compendium-mcp-darwin-arm64/access
+- https://www.npmjs.com/package/compendium-mcp-darwin-x64/access *(publish once, then add)*
+- https://www.npmjs.com/package/compendium-mcp-linux-x64/access
+- https://www.npmjs.com/package/compendium-mcp-linux-arm64/access
+- https://www.npmjs.com/package/compendium-mcp-win32-x64/access
+
+After OIDC works, optionally set **Publishing access** → “Require 2FA and disallow tokens”.
+
+### 2. Version alignment
+
+Keep versions aligned in `Cargo.toml`, root `package.json` (+ optionalDependencies), and `npm/platforms/*/package.json`.
+
+### 3. Tag + GitHub Release
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
-gh release create v0.1.0 --generate-notes
+git tag v0.1.1
+git push origin v0.1.1
+gh release create v0.1.1 --generate-notes
 ```
 
-The `Release` workflow cross-compiles with `--features real-tokens,http`, uploads `compendium-<platform>` assets, then `npm publish`es each platform package and the main wrapper.
+The `Release` workflow (`release.yml`) cross-compiles with `--features real-tokens,http`, uploads `compendium-<platform>` assets, then `npm publish`es each platform package and the main wrapper via OIDC (automatic provenance).
+
+Requires Node ≥22.14 / npm ≥11.5.1 on the publish job (workflow uses Node 24).
 
 ## Environment overrides
 

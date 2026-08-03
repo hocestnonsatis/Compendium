@@ -15,8 +15,10 @@
 - Güncelleme: 2026-08-03 — NotebookLM araştırması `REPORT.md` tamamlandı; sprint planı memories’de.
 - Güncelleme: 2026-08-03 — Sprint 1 tamamlandı: loopback/SSRF, sanitize, signal-to-call, SLM temp=0/seed.
 - Güncelleme: 2026-08-03 — Sprint 2 tamamlandı: AFM prune, BM25 filter/filter_relevant, action=rerank.
-- Güncelleme: 2026-08-03 — Sprint 3 tamamlandı: stats telemetry, OWNER hizalama, HTTP smoke; release NPM_TOKEN bekliyor.
+- Güncelleme: 2026-08-03 — Sprint 3 tamamlandı: stats telemetry, OWNER hizalama, HTTP smoke.
 - Güncelleme: 2026-08-03 — PR #1 merge → `master`; tag/release `v0.1.0` oluşturuldu.
+- Güncelleme: 2026-08-03 — npm: önce local publish (`NPM_TOKEN` eski); paket görününce OIDC dashboard’dan. Pack fix: `bin/.gitignore` içinde `!compendium` / `!compendium.exe`.
+- Güncelleme: 2026-08-03 — `compendium-mcp@0.1.0` + platform paketleri local publish (darwin-x64 henüz yok). CI → Trusted Publishing OIDC (`release.yml`, `NPM_TOKEN` yok).
 
 ## Tercihler
 - Dil: Rust; ana dalda çalış.
@@ -75,12 +77,13 @@
 8. Stats: `p50_latency_ms` / `p99_latency_ms`, `bypass_calls` / `bypass_ratio`, `token_backend`, `by_backend`.
 9. npm/docs: `hocestnonsatis/Compendium`.
 10. HTTP e2e: `cargo test --features http --test http_smoke`.
-- `v0.1.0` GitHub Release oluşturuldu: https://github.com/hocestnonsatis/Compendium/releases/tag/v0.1.0
-- npm publish: CI `NPM_TOKEN` secret’a bağlı (henüz yoksa workflow publish adımı fail olur).
+- `v0.1.0` GitHub Release / local npm publish yapıldı.
+- npm CI: Trusted Publishing OIDC (`release.yml`); `NPM_TOKEN` gerekmez. Her pakette Trusted Publisher = `hocestnonsatis` / `Compendium` / `release.yml`.
+- Eksik: `compendium-mcp-darwin-x64` (0.1.0’da yayınlanmadı); sonraki release’te eklenebilir.
 
 ## Sıradaki Adımlar
-- GitHub secret `NPM_TOKEN` ekle; gerekirse release workflow’u yeniden çalıştır.
-- İsteğe bağlı: SLM cross-encoder rerank.
+- OIDC workflow commit/push yapıldı; sonraki tag’de CI publish doğrula (darwin-x64 dahil).
+- İsteğe bağlı: Publishing access → disallow tokens; SLM cross-encoder rerank.
 
 ## Repo
 - GitHub: `hocestnonsatis/Compendium` (private), default branch `master`.
