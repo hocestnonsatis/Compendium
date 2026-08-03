@@ -33,7 +33,11 @@
 - C: token-optimizer, context-compress, context-mem (bilinçli olarak kopyalanmadı)
 
 ## Sıradaki Adımlar
-- GitHub remote + `NPM_TOKEN` secret; `OWNER/Compendium` placeholder’ı gerçek repo ile değiştir.
+- `NPM_TOKEN` secret; npm/docs içindeki `OWNER/Compendium` placeholder’ı `hocestnonsatis/Compendium` ile hizala.
 - İlk `v0.1.0` release oluştur.
 - İsteğe bağlı: HTTP e2e smoke.
 - İsteğe bağlı sonraki SLM: `rerank_chunks`, akıllı `prune_history`.
+- PR #1 (local SLM) merge.
+
+## Repo
+- GitHub: `hocestnonsatis/Compendium` (private), default branch `master`.
