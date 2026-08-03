@@ -1,0 +1,58 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please fill in as much as you can — minimal repros help a lot.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: npm package version, git tag, or commit SHA
+      placeholder: "compendium-mcp@0.1.1 / v0.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you run Compendium?
+      options:
+        - npx -y compendium-mcp
+        - npm global / local install
+        - Cargo binary (target/release)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / architecture
+      placeholder: "Linux x86_64 / macOS arm64 / Windows x64"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Expected vs actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal MCP tool call, env vars, or commands
+      placeholder: |
+        1. …
+        2. Call action=…
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stderr
+      description: Relevant stderr (stdio MCP logs go to stderr)
+      render: shell

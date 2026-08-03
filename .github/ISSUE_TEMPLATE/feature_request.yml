@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an enhancement to Compendium
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What token/context pain does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: API shape (gateway action/args), UX, or algorithm idea
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing actions, heuristic vs local SLM, other tools
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope checks
+      options:
+        - label: Fits the compression / filter / cache / prune toolkit (not a general agent framework)
+        - label: Willing to contribute a PR if maintainers agree on design

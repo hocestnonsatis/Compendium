@@ -13,6 +13,8 @@ npx -y compendium-mcp --help
 # or: npm install -g compendium-mcp
 ```
 
+If you run that **from this repo’s root**, npm treats the local `package.json` as the package and needs bin shims — run `npm install` once (runs `prepare` / `link-bins`), or use `node bin/run.js`. From any other directory, plain `npx -y compendium-mcp` is enough.
+
 **Cursor / Claude Desktop**
 
 ```json
@@ -27,6 +29,13 @@ npx -y compendium-mcp --help
 ```
 
 Distribution uses **optional platform packages** (`compendium-mcp-darwin-arm64`, …) with a **GitHub Releases download fallback**. See [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md) for local testing, CI release, and publishing.
+
+## Community
+
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+- [Support](SUPPORT.md)
 
 ## Transports
 

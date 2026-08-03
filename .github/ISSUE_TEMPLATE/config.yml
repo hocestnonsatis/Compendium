@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/hocestnonsatis/Compendium/security/advisories/new
+    about: Report a security issue privately (do not open a public issue).
+  - name: npm package (compendium-mcp)
+    url: https://www.npmjs.com/package/compendium-mcp
+    about: Install / version information for the published MCP binary wrapper.
