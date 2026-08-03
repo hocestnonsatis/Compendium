@@ -230,19 +230,54 @@ jobs:
           VERSION: ${{ needs.meta.outputs.version }}
 
       - name: Publish platform packages (OIDC)
+        id: publish_platforms
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           npm --version
+          # setup-node injects a placeholder NODE_AUTH_TOKEN; clear it so OIDC wins.
+          unset NODE_AUTH_TOKEN || true
+          failed=0
           for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
             dest="npm/platforms/$platform"
             if [[ -e "$dest/bin/compendium" || -e "$dest/bin/compendium.exe" ]]; then
               echo "Publishing $dest …"
-              npm publish --access public "$dest"
+              if out=$(npm publish --access public "$dest" 2>&1); then
+                echo "$out"
+              else
+                echo "$out"
+                if echo "$out" | grep -qiE 'cannot publish over existing|EPUBLISHCONFLICT|previously published'; then
+                  echo "Already published — treating as success"
+                else
+                  echo "::error::Failed to publish $platform (brand-new package names need one interactive publish + Trusted Publisher before OIDC works)"
+                  failed=1
+                fi
+              fi
             else
               echo "Skipping $platform (no binary artifact)"
             fi
           done
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+        env:
+          NODE_AUTH_TOKEN: ""
 
       - name: Publish main wrapper (OIDC)
-        run: npm publish --access public
+        run: |
+          unset NODE_AUTH_TOKEN || true
+          if out=$(npm publish --access public 2>&1); then
+            echo "$out"
+          else
+            echo "$out"
+            if echo "$out" | grep -qiE 'cannot publish over existing|EPUBLISHCONFLICT|previously published'; then
+              echo "Already published — treating as success"
+            else
+              exit 1
+            fi
+          fi
+        env:
+          NODE_AUTH_TOKEN: ""
+
+      - name: Fail if any platform publish failed
+        if: steps.publish_platforms.outputs.failed == '1'
+        run: exit 1
+
