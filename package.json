@@ -24,7 +24,8 @@
     "node": ">=18"
   },
   "bin": {
-    "compendium": "bin/run.js"
+    "compendium": "bin/run.js",
+    "compendium-mcp": "bin/run.js"
   },
   "files": [
     "bin/",
@@ -33,7 +34,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepack": "node npm/scripts/check-wrapper.js"
+    "prepack": "node npm/scripts/check-wrapper.js",
+    "prepare": "node npm/scripts/link-bins.js"
   },
   "optionalDependencies": {
     "compendium-mcp-darwin-arm64": "0.1.1",

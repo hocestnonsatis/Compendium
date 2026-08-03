@@ -4,18 +4,13 @@ MCP server that **minimizes LLM token usage** by compressing, summarizing, filte
 
 Built in Rust with the official [`rmcp`](https://crates.io/crates/rmcp) SDK.
 
-## Install via npm / npx
+## Quick start (Cursor)
 
-Package name: **`compendium-mcp`** (the npm name `compendium` is taken). CLI bin: `compendium`.
+You need **Node.js 18+**. Compendium itself arrives via npm — no Rust install required.
 
-```bash
-npx -y compendium-mcp --help
-# or: npm install -g compendium-mcp
-```
+### 1. Add the MCP server
 
-If you run that **from this repo’s root**, npm treats the local `package.json` as the package and needs bin shims — run `npm install` once (runs `prepare` / `link-bins`), or use `node bin/run.js`. From any other directory, plain `npx -y compendium-mcp` is enough.
-
-**Cursor / Claude Desktop**
+Open Cursor MCP settings (`~/.cursor/mcp.json` or the project `.cursor/mcp.json`) and add:
 
 ```json
 {
@@ -28,7 +23,55 @@ If you run that **from this repo’s root**, npm treats the local `package.json`
 }
 ```
 
-Distribution uses **optional platform packages** (`compendium-mcp-darwin-arm64`, …) with a **GitHub Releases download fallback**. See [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md) for local testing, CI release, and publishing.
+Restart MCP / reload Cursor. You should see one tool named **`compendium`**.
+
+That alone is enough: filter, compress, summarize, cache, and BM25 actions all work **without** a local model (fast heuristics).
+
+### 2. (Optional) Smarter summaries with Ollama
+
+Want better `summarize_smart` / `filter_relevant`? Run a small model on your machine and point Compendium at it.
+
+1. Install [Ollama](https://ollama.com/) and start it (default: `http://127.0.0.1:11434`).
+2. Pull a chat model, for example:
+
+```bash
+ollama pull qwen:latest
+# or a smaller one: ollama pull qwen2.5:3b
+```
+
+3. Extend the MCP `env` block (URL must stay on **localhost** — Compendium blocks remote hosts on purpose):
+
+```json
+{
+  "mcpServers": {
+    "compendium": {
+      "command": "npx",
+      "args": ["-y", "compendium-mcp"],
+      "env": {
+        "COMPENDIUM_LOCAL_LLM_URL": "http://127.0.0.1:11434/v1",
+        "COMPENDIUM_LOCAL_LLM_MODEL": "qwen:latest"
+      }
+    }
+  }
+}
+```
+
+4. Reload MCP, then ask the agent to call `compendium` with `action: "summarize_smart"`.  
+   In the result, `"backend": "local_llm"` means Ollama answered; `"heuristic"` means it fell back (Ollama down, wrong model name, or URL missing).
+
+**Notes**
+
+- Package name on npm is **`compendium-mcp`** (`compendium` was already taken). The CLI binary name is still `compendium`.
+- First Ollama reply can be slow while the model loads; later calls are faster.
+- Other local OpenAI-compatible servers work the same way (e.g. Lemonade `http://127.0.0.1:13305/api/v1`). See [Environment](#environment).
+
+Smoke-check from a terminal (any folder **except** this git repo root is fine):
+
+```bash
+npx -y compendium-mcp --help
+```
+
+Binary packaging details for maintainers: [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md).
 
 ## Community
 
@@ -132,27 +175,27 @@ cargo build --release --features real-tokens,http
 
 Binary: `target/release/compendium`
 
-## Configure (Cursor / Claude Desktop)
+## Configure (advanced)
 
-### Cursor (`~/.cursor/mcp.json` or project `.cursor/mcp.json`)
+The [Quick start](#quick-start-cursor) config is enough for most people. Extra options:
+
+### Claude Desktop
+
+Same `command` / `args` / `env` as Cursor, in Claude’s MCP config file.
+
+### Optional tuning env
 
 ```json
-{
-  "mcpServers": {
-    "compendium": {
-      "command": "npx",
-      "args": ["-y", "compendium-mcp"],
-      "env": {
-        "RUST_LOG": "compendium=info",
-        "COMPENDIUM_DEFAULT_MAX_TOKENS": "2048",
-        "COMPENDIUM_TOKENIZER": "cl100k_base"
-      }
-    }
-  }
+"env": {
+  "RUST_LOG": "compendium=info",
+  "COMPENDIUM_DEFAULT_MAX_TOKENS": "2048",
+  "COMPENDIUM_TOKENIZER": "cl100k_base",
+  "COMPENDIUM_LOCAL_LLM_URL": "http://127.0.0.1:11434/v1",
+  "COMPENDIUM_LOCAL_LLM_MODEL": "qwen:latest"
 }
 ```
 
-Or point at a local release binary:
+### Local Cargo binary (developers)
 
 ```json
 {
@@ -161,9 +204,7 @@ Or point at a local release binary:
       "command": "/absolute/path/to/Compendium/target/release/compendium",
       "env": {
         "RUST_LOG": "compendium=info",
-        "COMPENDIUM_DEFAULT_MAX_TOKENS": "2048",
-        "COMPENDIUM_CHARS_PER_TOKEN": "4.0",
-        "COMPENDIUM_TOKENIZER": "cl100k_base"
+        "COMPENDIUM_DEFAULT_MAX_TOKENS": "2048"
       }
     }
   }
@@ -190,7 +231,7 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_SIMILARITY_THRESHOLD` | `0.85` | Jaccard line-dedupe threshold |
 | `COMPENDIUM_HTTP_BIND` | `127.0.0.1:8788` | Default HTTP listen address |
 | `COMPENDIUM_LOCAL_LLM_URL` | _(unset)_ | OpenAI-compatible base URL (e.g. `http://127.0.0.1:11434/v1` or `http://127.0.0.1:13305/api/v1`). Enables smart actions. |
-| `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id accepted by the local server |
+| `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id on that server (Ollama: e.g. `qwen:latest`) |
 | `COMPENDIUM_LOCAL_LLM_API_KEY` | _(unset)_ | Optional bearer token for locked loopback servers |
 | `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
 | `COMPENDIUM_SIGNAL_MIN_CHARS` | `1000` | Bypass compress/summarize below this length (`0` disables) |
@@ -261,24 +302,15 @@ Without `COMPENDIUM_LOCAL_LLM_URL`, `summarize_smart` / `filter_relevant` automa
 
 ## Local small language model
 
-Smart actions call a **loopback-only** OpenAI-compatible chat endpoint — never a cloud API. `COMPENDIUM_LOCAL_LLM_URL` must be `127.0.0.1`, `::1`, or `localhost` (SSRF guard). Requests use `temperature=0` and `seed=0` for stable outputs. Point Compendium at Ollama, Lemonade, or llama.cpp:
+Follow [Quick start §2](#2-optional-smarter-summaries-with-ollama) for Ollama.
 
-```json
-{
-  "mcpServers": {
-    "compendium": {
-      "command": "npx",
-      "args": ["-y", "compendium-mcp"],
-      "env": {
-        "COMPENDIUM_LOCAL_LLM_URL": "http://127.0.0.1:11434/v1",
-        "COMPENDIUM_LOCAL_LLM_MODEL": "qwen2.5:3b"
-      }
-    }
-  }
-}
-```
+Rules of thumb:
 
-Lemonade example: `COMPENDIUM_LOCAL_LLM_URL=http://127.0.0.1:13305/api/v1` and `COMPENDIUM_LOCAL_LLM_MODEL=Qwen3-4B-GGUF`.
+- **Only loopback** URLs (`127.0.0.1`, `::1`, `localhost`) — no cloud endpoints.
+- Without `COMPENDIUM_LOCAL_LLM_URL`, smart actions use heuristics and set `backend: "heuristic"`.
+- Calls use `temperature=0` and `seed=0` for stable outputs.
+- Lemonade example: `COMPENDIUM_LOCAL_LLM_URL=http://127.0.0.1:13305/api/v1` and `COMPENDIUM_LOCAL_LLM_MODEL=Qwen3-4B-GGUF`.
+- llama.cpp OpenAI server: same pattern — set URL to its `/v1` base and the served model id.
 
 ## Develop / test
 
