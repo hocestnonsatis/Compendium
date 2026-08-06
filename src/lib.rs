@@ -5,6 +5,7 @@
 //! smart actions call an OpenAI-compatible loopback endpoint when configured.
 //! The MCP server exposes these as tools over JSON-RPC stdio.
 
+pub mod brand;
 pub mod config;
 #[cfg(feature = "http")]
 pub mod http;

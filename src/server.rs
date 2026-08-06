@@ -13,6 +13,8 @@ use rmcp::{
     service::{RequestContext, RoleServer},
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
+
+use crate::brand::{mcp_icons, WEBSITE_URL};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -686,7 +688,8 @@ impl CompendiumServer {
         resources.push(
             Resource::new("cmp://skill/index", "skill-index")
                 .with_description("Compendium skill index (actions + playbooks)")
-                .with_mime_type("application/json"),
+                .with_mime_type("application/json")
+                .with_icons(mcp_icons()),
         );
         for ad in action_ads() {
             resources.push(
@@ -864,7 +867,8 @@ impl CompendiumServer {
     /// Token-optimization gateway — one tool, many actions via `action`.
     #[tool(
         name = "compendium",
-        description = "Token-optimization gateway. Set `action` (filter, compress, brief, catalog, help, playbooks, pack/unpack, …). Prefer action=catalog or MCP resources (cmp://skill/…) for details; action=help+id for one action. Pass text/query/messages/key/id/items as required."
+        description = "Token-optimization gateway. Set `action` (filter, compress, brief, catalog, help, playbooks, pack/unpack, …). Prefer action=catalog or MCP resources (cmp://skill/…) for details; action=help+id for one action. Pass text/query/messages/key/id/items as required.",
+        icons = mcp_icons()
     )]
     fn compendium(
         &self,
@@ -886,10 +890,15 @@ impl ServerHandler for CompendiumServer {
                 .enable_resources()
                 .build(),
         )
-        .with_server_info(rmcp::model::Implementation::new(
-            "compendium",
-            env!("CARGO_PKG_VERSION"),
-        ))
+        .with_server_info(
+            rmcp::model::Implementation::new("compendium", env!("CARGO_PKG_VERSION"))
+                .with_title("Compendium")
+                .with_description(
+                    "MCP gateway that compresses, filters, and packs context to cut LLM tokens",
+                )
+                .with_icons(mcp_icons())
+                .with_website_url(WEBSITE_URL),
+        )
         .with_instructions(
             "Call `compendium` with `action`. Prefer catalog/help or MCP resources cmp://skill/… for details. Quick map: noisy logs→filter/compress_output; untrusted→sanitize; relevance→filter_relevant/rerank; workspace start→brief; bulky→compress/cache_store/chunk+resolve; long chat→prune_history(afm); recipes→playbooks/playbook; archives→pack/unpack (size-capped, never runs scripts); measure→count_tokens/stats."
                 .to_string(),

@@ -1,5 +1,9 @@
 # Compendium
 
+<p align="center">
+  <img src="assets/logo.svg" alt="Compendium" width="420" />
+</p>
+
 MCP server that **minimizes LLM token usage** by compressing, summarizing, filtering, and chunk-referencing large context before it reaches the model.
 
 Built in Rust with the official [`rmcp`](https://crates.io/crates/rmcp) SDK.
@@ -152,9 +156,11 @@ Response envelope: `{ "ok": true, "action": "filter", "result_json": "{...}" }`.
 ## Project layout
 
 ```
+assets/                # brand mark (SVG/PNG); baked into MCP icons via data URI
 src/
   main.rs              # CLI: stdio | http
   lib.rs
+  brand.rs             # SEP-973 icons for serverInfo + tool
   config.rs            # COMPENDIUM_* env config
   server.rs            # MCP tool + resources handlers (rmcp)
   http.rs              # Streamable HTTP/SSE (feature = "http")
