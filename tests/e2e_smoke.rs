@@ -274,6 +274,58 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         "unexpected rerank: {ranked_result}"
     );
 
+    // brief — workspace scan + pack
+    let brief_root = std::env::temp_dir().join(format!(
+        "compendium-e2e-brief-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(brief_root.join(".git"))?;
+    std::fs::create_dir_all(brief_root.join("src"))?;
+    std::fs::write(
+        brief_root.join("src/auth.rs"),
+        "pub fn authenticate(token: &str) -> bool { !token.is_empty() }\n".repeat(20),
+    )?;
+    std::fs::write(
+        brief_root.join("src/theme.rs"),
+        "pub const COLOR: &str = \"blue\";\n",
+    )?;
+    let brief = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "brief",
+                "query": "authenticate token login",
+                "brief": {
+                    "root": brief_root.to_string_lossy(),
+                    "max_files": 8,
+                    "top_k_chunks": 4,
+                    "max_brief_tokens": 512
+                }
+            }))),
+        )
+        .await?;
+    assert_ok(&brief, "brief");
+    let brief_result = gateway_result(&brief);
+    assert!(
+        brief_result
+            .get("briefing")
+            .and_then(|v| v.as_str())
+            .map(|s| s.contains("## Task") && s.contains("## Context"))
+            .unwrap_or(false),
+        "unexpected brief: {brief_result}"
+    );
+    assert!(
+        brief_result
+            .get("cache_key")
+            .and_then(|v| v.as_str())
+            .map(|s| s.starts_with("cache://brief/"))
+            .unwrap_or(false),
+        "missing brief cache_key: {brief_result}"
+    );
+    let _ = std::fs::remove_dir_all(&brief_root);
+
     let cout = client
         .call_tool(
             CallToolRequestParams::new("compendium").with_arguments(args_object(json!({

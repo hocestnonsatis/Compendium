@@ -1,6 +1,6 @@
 [package]
 name = "compendium"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "MCP server that compresses, summarizes, and filters context to minimize LLM token usage"
 license = "MIT"
@@ -32,6 +32,7 @@ http = [
 [dependencies]
 anyhow = "1.0.104"
 axum = { version = "0.8", optional = true }
+ignore = "0.4"
 regex = "1.13.1"
 # OpenAI-compatible local SLM client (Ollama / Lemonade / llama.cpp server).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }

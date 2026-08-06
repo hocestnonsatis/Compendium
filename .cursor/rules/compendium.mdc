@@ -16,6 +16,7 @@ When tool output, logs, JSON, or pasted blobs are large or noisy, call the MCP t
 | Untrusted text / possible secrets or IPI | `action: "sanitize"` + `text` (or `sanitize_input: true`) |
 | Keep only lines about a question | `action: "filter_relevant"` or `filter` + `query` (BM25) |
 | Rank chunks for a question | `action: "rerank"` + `query` + `items` / chunk `map` |
+| New sub-task / fresh agent turn | `action: "brief"` + `query` (+ optional `brief.root`); use returned `briefing` (or `cache_key`) as the starter context |
 | Dense rewrite of code/logs/JSON | `action: "compress"` + `text` (skip if &lt;~1000 chars unless `force`) |
 | Long chat / transcript | `action: "prune_history"` (`strategy: "afm"` preferred) or `summarize` / `summarize_smart` |
 | Huge file/corpus you may revisit | `action: "chunk"` then later `resolve` with `id` |

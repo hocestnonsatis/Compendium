@@ -13,6 +13,7 @@ pub mod server;
 
 pub use config::{Config, LocalLlmConfig, DEFAULT_SIGNAL_MIN_CHARS};
 pub use pipeline::{
+    brief::{brief, BriefOptions, BriefResult, BriefSource},
     cache::{CacheGetResult, CacheInvalidateResult, CacheStoreOptions, CacheStoreResult},
     chunk::{chunk_with_refs, resolve_chunk, resolve_ref, ChunkMap, ChunkOptions, ResolveResult},
     compress::{compress, CompressOptions, CompressResult},

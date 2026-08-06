@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 
 use crate::config::Config;
 use crate::pipeline::{
+    brief::{brief, BriefOptions},
     cache::{CacheStore, CacheStoreOptions},
     chunk::{chunk_with_refs, resolve_ref, ChunkMap, ChunkOptions},
     compress::{compress, CompressOptions},
@@ -140,6 +141,7 @@ impl CompendiumServer {
             CompendiumAction::CacheInvalidate => self.act_cache_invalidate(params),
             CompendiumAction::Sanitize => self.act_sanitize(params),
             CompendiumAction::Rerank => self.act_rerank(params),
+            CompendiumAction::Brief => self.act_brief(params),
         };
 
         let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
@@ -467,6 +469,48 @@ impl CompendiumServer {
         self.record_call("cache_invalidate");
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
+
+    fn act_brief(&self, params: GatewayParams) -> Result<Value, String> {
+        let query = params
+            .query
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "brief requires `query` (task description)".to_string())?;
+
+        let options = params.brief.unwrap_or_default();
+        let hint = params
+            .text
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+
+        let mut result = brief(query, hint, &options, &self.config)?;
+
+        // Always sanitize briefing payload (plan default); extra pass if sanitize_input.
+        if params.sanitize_input.unwrap_or(false) {
+            let scrub = sanitize(
+                &result.briefing,
+                &params.sanitize.unwrap_or_default(),
+                &self.config,
+            );
+            result.briefing = scrub.content;
+        }
+
+        let store_opts = CacheStoreOptions {
+            key: Some(result.cache_key.clone()),
+            ttl_secs: None,
+            preview_chars: 160,
+        };
+        if let Ok(mut state) = self.state.lock() {
+            let _ = state
+                .cache
+                .store(&result.briefing, &store_opts, &self.config);
+        }
+
+        self.record("brief", &result.metrics);
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
 }
 
 /// Gateway action selector.
@@ -505,6 +549,8 @@ pub enum CompendiumAction {
     Sanitize,
     /// BM25-rank text chunks / candidates for a query.
     Rerank,
+    /// Scan a workspace for task-relevant slices and pack a starter briefing.
+    Brief,
 }
 
 impl CompendiumAction {
@@ -526,6 +572,7 @@ impl CompendiumAction {
             Self::CacheInvalidate => "cache_invalidate",
             Self::Sanitize => "sanitize",
             Self::Rerank => "rerank",
+            Self::Brief => "brief",
         }
     }
 }
@@ -540,7 +587,7 @@ pub struct GatewayParams {
     /// or a `user:/assistant:` transcript for prune_history, or raw corpus for resolve.
     pub text: Option<String>,
 
-    /// Relevance query for `filter_relevant`.
+    /// Relevance query for `filter_relevant` / `rerank` / `brief`.
     pub query: Option<String>,
 
     /// Structured chat turns for `prune_history` (preferred over `text`).
@@ -584,6 +631,8 @@ pub struct GatewayParams {
     pub items: Option<Vec<RerankItem>>,
     /// Options for `action=rerank`.
     pub rerank: Option<RerankOptions>,
+    /// Options for `action=brief` (workspace scan + pack).
+    pub brief: Option<BriefOptions>,
 }
 
 /// Gateway response envelope.
@@ -602,7 +651,7 @@ impl CompendiumServer {
     /// Token-optimization gateway — one tool, many actions via `action`.
     #[tool(
         name = "compendium",
-        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | summarize_smart | filter_relevant | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate | sanitize | rerank. Pass text (or messages/key/id/query/items as required). Use filter(+query) or filter_relevant for BM25 keep; rerank to score chunks; prune_history with strategy=afm for tiered memory; sanitize on untrusted output; compress/summarize for bulky blobs."
+        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | summarize_smart | filter_relevant | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate | sanitize | rerank | brief. Pass text (or messages/key/id/query/items as required). Use filter(+query) or filter_relevant for BM25 keep; rerank to score chunks; brief+query to scan a workspace and pack a starter briefing; prune_history with strategy=afm for tiered memory; sanitize on untrusted output; compress/summarize for bulky blobs."
     )]
     fn compendium(
         &self,
@@ -615,6 +664,6 @@ impl CompendiumServer {
 #[tool_handler(
     name = "compendium",
     version = "0.1.0",
-    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy logs; action=filter(+query) or filter_relevant for BM25 query-aware keep; action=rerank with query+items for chunk ranking; action=prune_history with prune.strategy=afm for Adaptive Focus Memory; action=sanitize on untrusted payloads; action=summarize_smart when a local SLM is configured; action=compress or cache_store for bulky blobs; action=chunk then resolve/rerank for large corpora; action=count_tokens or stats to measure savings."
+    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy logs; action=filter(+query) or filter_relevant for BM25 query-aware keep; action=rerank with query+items for chunk ranking; action=brief with query (+ optional brief.root) to scan the workspace and pack a compact starter briefing for a fresh agent turn; action=prune_history with prune.strategy=afm for Adaptive Focus Memory; action=sanitize on untrusted payloads; action=summarize_smart when a local SLM is configured; action=compress or cache_store for bulky blobs; action=chunk then resolve/rerank for large corpora; action=count_tokens or stats to measure savings."
 )]
 impl ServerHandler for CompendiumServer {}

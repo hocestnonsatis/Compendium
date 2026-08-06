@@ -111,10 +111,13 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
 | `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
 | `rerank` | BM25-rank candidates / chunks for a query | `query`, `items` or `text` or chunk `map`, `rerank?` |
+| `brief` | Scan a workspace for task-relevant slices; pack a starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
 
 Optional on most text actions: `sanitize_input: true` scrubs before processing. Soft payloads under `COMPENDIUM_SIGNAL_MIN_CHARS` (default 1000) bypass `compress` / `summarize` / `summarize_smart` unless `force: true`.
 
 `filter` accepts optional `query` (top-level or `filter.query`) for BM25 line keep. `prune_history` supports `prune.strategy: "afm"` (Critical / Thematic / Distant tiers; distant blob cached for `cache_get`).
+
+`brief` walks `brief.root` (default: process cwd) with `.gitignore` / `.ignore` via the `ignore` crate, BM25-ranks paths and chunks for `query`, then returns a compact `briefing` plus `cache_key` (`cache://brief/…`, also stored in the session cache). Use that briefing to start a fresh agent turn without pasting the whole repo. Optional `COMPENDIUM_BRIEF_ROOT` restricts allowed roots (useful for HTTP). Briefings are sanitized by default.
 
 Example:
 
@@ -235,6 +238,7 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_LOCAL_LLM_API_KEY` | _(unset)_ | Optional bearer token for locked loopback servers |
 | `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
 | `COMPENDIUM_SIGNAL_MIN_CHARS` | `1000` | Bypass compress/summarize below this length (`0` disables) |
+| `COMPENDIUM_BRIEF_ROOT` | _(unset)_ | When set, `action=brief` may only scan roots under this canonical path |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 
 ## Example tool calls
@@ -299,6 +303,23 @@ Prefer the returned `index_text` in the model context; pull individual chunk con
 ```
 
 Without `COMPENDIUM_LOCAL_LLM_URL`, `summarize_smart` / `filter_relevant` automatically use heuristics and set `backend: "heuristic"` plus `fallback_reason` in the result.
+
+**Pack a workspace briefing for a fresh agent turn**
+
+```json
+{
+  "action": "brief",
+  "query": "fix the OAuth refresh token path",
+  "brief": {
+    "root": "/path/to/repo",
+    "max_files": 40,
+    "top_k_chunks": 12,
+    "max_brief_tokens": 2048
+  }
+}
+```
+
+Start the new turn with the returned `briefing` (or `cache_get` the `cache_key`). The host should not paste the whole tree into the prompt first.
 
 ## Local small language model
 

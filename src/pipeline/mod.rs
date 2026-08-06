@@ -1,6 +1,7 @@
 //! Token-optimization pipeline primitives.
 
 pub mod bm25;
+pub mod brief;
 pub mod cache;
 pub mod chunk;
 pub mod compress;
