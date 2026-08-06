@@ -47,6 +47,9 @@ pub struct SessionStats {
     pub result_tokens: usize,
     pub tokens_saved: usize,
     pub reduction_ratio: f64,
+    /// Alias of [`Self::reduction_ratio`] (CSR-style vocabulary).
+    #[serde(default)]
+    pub compression_ratio: f64,
     /// Calls that hit the signal-to-call short-input bypass.
     #[serde(default)]
     pub bypass_calls: usize,
@@ -58,6 +61,23 @@ pub struct SessionStats {
     pub p50_latency_ms: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub p99_latency_ms: Option<f64>,
+    /// Wall-clock to resolve `action` enum dispatch (same samples as p50/p99).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_resolve_p50_ms: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_resolve_p99_ms: Option<f64>,
+    /// `catalog` / compressed `help` / `playbooks` / resources list ads.
+    #[serde(default)]
+    pub lazy_ad_calls: usize,
+    /// Full `help` / `playbook` / resources/read bodies.
+    #[serde(default)]
+    pub lazy_full_loads: usize,
+    /// Non-discovery action that matched the last discovered skill id.
+    #[serde(default)]
+    pub lazy_follow_through: usize,
+    /// `lazy_follow_through / max(1, lazy_ad_calls + lazy_full_loads)`.
+    #[serde(default)]
+    pub lazy_hit_rate: f64,
     /// Build-time token counter: `heuristic` or `tiktoken`.
     #[serde(default)]
     pub token_backend: String,
@@ -67,6 +87,9 @@ pub struct SessionStats {
     pub by_tool: HashMap<String, ToolStats>,
     #[serde(skip)]
     latency_samples_ms: Vec<f64>,
+    /// Last discovered action/playbook id awaiting follow-through.
+    #[serde(skip)]
+    pending_discovery: Option<String>,
 }
 
 const MAX_LATENCY_SAMPLES: usize = 4_096;
@@ -82,20 +105,12 @@ impl SessionStats {
         self.original_tokens += metrics.original_tokens;
         self.result_tokens += metrics.result_tokens;
         self.tokens_saved += saved;
-        self.reduction_ratio = if self.original_tokens == 0 {
-            0.0
-        } else {
-            self.tokens_saved as f64 / self.original_tokens as f64
-        };
+        self.recompute_ratios();
 
         if meta.bypassed {
             self.bypass_calls += 1;
         }
-        self.bypass_ratio = if self.total_calls == 0 {
-            0.0
-        } else {
-            self.bypass_calls as f64 / self.total_calls as f64
-        };
+        self.recompute_bypass();
 
         if let Some(backend) = &meta.backend {
             *self.by_backend.entry(backend.clone()).or_insert(0) += 1;
@@ -129,11 +144,7 @@ impl SessionStats {
         if meta.bypassed {
             self.bypass_calls += 1;
         }
-        self.bypass_ratio = if self.total_calls == 0 {
-            0.0
-        } else {
-            self.bypass_calls as f64 / self.total_calls as f64
-        };
+        self.recompute_bypass();
         if let Some(backend) = &meta.backend {
             *self.by_backend.entry(backend.clone()).or_insert(0) += 1;
         }
@@ -152,6 +163,35 @@ impl SessionStats {
         }
     }
 
+    /// Progressive-disclosure advertisement (catalog / compressed help / playbooks list).
+    pub fn note_lazy_ad(&mut self, discovered_id: Option<&str>) {
+        self.lazy_ad_calls += 1;
+        if let Some(id) = discovered_id.map(str::trim).filter(|s| !s.is_empty()) {
+            self.pending_discovery = Some(id.to_string());
+        }
+        self.recompute_lazy_hit();
+    }
+
+    /// Full skill body load (full help / playbook / resources/read).
+    pub fn note_lazy_full(&mut self, discovered_id: Option<&str>) {
+        self.lazy_full_loads += 1;
+        if let Some(id) = discovered_id.map(str::trim).filter(|s| !s.is_empty()) {
+            self.pending_discovery = Some(id.to_string());
+        }
+        self.recompute_lazy_hit();
+    }
+
+    /// After a non-discovery action: count follow-through if it matches pending discovery.
+    pub fn note_action_follow(&mut self, action: &str) {
+        let action = action.trim();
+        if let Some(pending) = self.pending_discovery.take() {
+            if pending.eq_ignore_ascii_case(action) {
+                self.lazy_follow_through += 1;
+            }
+        }
+        self.recompute_lazy_hit();
+    }
+
     /// Attach latency / bypass / backend after `record` / `record_count_only` already ran.
     pub fn attach_post_call(
         &mut self,
@@ -163,11 +203,7 @@ impl SessionStats {
         push_sample(&mut self.latency_samples_ms, latency_ms);
         if bypassed {
             self.bypass_calls += 1;
-            self.bypass_ratio = if self.total_calls == 0 {
-                0.0
-            } else {
-                self.bypass_calls as f64 / self.total_calls as f64
-            };
+            self.recompute_bypass();
         }
         if let Some(backend) = backend {
             *self.by_backend.entry(backend.to_string()).or_insert(0) += 1;
@@ -190,8 +226,12 @@ impl SessionStats {
             #[cfg(feature = "real-tokens")]
             TokenBackend::Tiktoken => "tiktoken".into(),
         };
+        out.recompute_ratios();
+        out.recompute_lazy_hit();
         out.p50_latency_ms = percentile(&out.latency_samples_ms, 0.50);
         out.p99_latency_ms = percentile(&out.latency_samples_ms, 0.99);
+        out.action_resolve_p50_ms = out.p50_latency_ms;
+        out.action_resolve_p99_ms = out.p99_latency_ms;
         for tool in out.by_tool.values_mut() {
             tool.p50_latency_ms = percentile(&tool.latency_samples_ms, 0.50);
             tool.p99_latency_ms = percentile(&tool.latency_samples_ms, 0.99);
@@ -202,6 +242,31 @@ impl SessionStats {
     pub fn clear(&mut self) {
         *self = Self::default();
     }
+
+    fn recompute_ratios(&mut self) {
+        self.reduction_ratio = if self.original_tokens == 0 {
+            0.0
+        } else {
+            self.tokens_saved as f64 / self.original_tokens as f64
+        };
+        self.compression_ratio = self.reduction_ratio;
+    }
+
+    fn recompute_bypass(&mut self) {
+        self.bypass_ratio = if self.total_calls == 0 {
+            0.0
+        } else {
+            self.bypass_calls as f64 / self.total_calls as f64
+        };
+    }
+
+    fn recompute_lazy_hit(&mut self) {
+        let denom = self
+            .lazy_ad_calls
+            .saturating_add(self.lazy_full_loads)
+            .max(1);
+        self.lazy_hit_rate = self.lazy_follow_through as f64 / denom as f64;
+    }
 }
 
 fn push_sample(samples: &mut Vec<f64>, ms: f64) {
@@ -209,7 +274,6 @@ fn push_sample(samples: &mut Vec<f64>, ms: f64) {
         return;
     }
     if samples.len() >= MAX_LATENCY_SAMPLES {
-        // Drop oldest half to bound memory.
         let keep = MAX_LATENCY_SAMPLES / 2;
         samples.drain(0..samples.len() - keep);
     }
@@ -239,6 +303,7 @@ mod tests {
         assert_eq!(s.total_calls, 2);
         assert_eq!(s.tokens_saved, 210);
         assert!((s.reduction_ratio - 0.7).abs() < 0.01);
+        assert!((s.compression_ratio - 0.7).abs() < 0.01);
         assert_eq!(s.by_tool["compendium_filter"].tokens_saved, 60);
     }
 
@@ -261,7 +326,22 @@ mod tests {
         assert!(snap.bypass_ratio > 0.0);
         assert!(snap.p50_latency_ms.unwrap() >= 20.0);
         assert!(snap.p99_latency_ms.unwrap() >= 40.0);
+        assert_eq!(snap.action_resolve_p50_ms, snap.p50_latency_ms);
         assert_eq!(snap.by_backend.get("heuristic"), Some(&5));
         assert!(!snap.token_backend.is_empty());
+    }
+
+    #[test]
+    fn tracks_lazy_follow_through() {
+        let mut s = SessionStats::default();
+        s.note_lazy_ad(Some("brief"));
+        s.note_action_follow("brief");
+        assert_eq!(s.lazy_ad_calls, 1);
+        assert_eq!(s.lazy_follow_through, 1);
+        assert!(s.lazy_hit_rate > 0.0);
+        s.note_lazy_full(Some("filter"));
+        s.note_action_follow("compress");
+        assert_eq!(s.lazy_follow_through, 1);
+        assert_eq!(s.lazy_full_loads, 1);
     }
 }

@@ -7,8 +7,8 @@ use std::time::Instant;
 use rmcp::{
     handler::server::wrapper::{Json, Parameters},
     model::{
-        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        ListResourcesResult, MetaObject, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
     service::{RequestContext, RoleServer},
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
@@ -141,6 +141,8 @@ impl CompendiumServer {
         let action = params.action;
         let action_name = action.as_str();
         let started = Instant::now();
+        let discovery_id = params.id.clone().or_else(|| params.key.clone());
+        let force = params.force.unwrap_or(false);
 
         let outcome = match action {
             CompendiumAction::Filter => self.act_filter(params),
@@ -173,6 +175,7 @@ impl CompendiumServer {
         match outcome {
             Ok(result) => {
                 self.attach_telemetry(action_name, latency_ms, Some(&result));
+                self.note_lazy_telemetry(action, discovery_id.as_deref(), force);
                 GatewayEnvelope {
                     ok: true,
                     action: action_name.into(),
@@ -187,6 +190,42 @@ impl CompendiumServer {
                     action: action_name.into(),
                     result_json: "{}".into(),
                     error: Some(error),
+                }
+            }
+        }
+    }
+
+    fn note_lazy_telemetry(
+        &self,
+        action: CompendiumAction,
+        discovery_id: Option<&str>,
+        force: bool,
+    ) {
+        if let Ok(mut state) = self.state.lock() {
+            match action {
+                CompendiumAction::Catalog | CompendiumAction::Playbooks => {
+                    state.stats.note_lazy_ad(None);
+                }
+                CompendiumAction::Help => {
+                    let id = discovery_id
+                        .map(|s| s.strip_prefix("cmp://skill/action/").unwrap_or(s));
+                    if force {
+                        state.stats.note_lazy_full(id);
+                    } else {
+                        state.stats.note_lazy_ad(id);
+                    }
+                }
+                CompendiumAction::Playbook => {
+                    let id = discovery_id
+                        .map(|s| s.strip_prefix("cmp://skill/playbook/").unwrap_or(s));
+                    state.stats.note_lazy_full(id);
+                }
+                CompendiumAction::Stats
+                | CompendiumAction::CountTokens
+                | CompendiumAction::CacheGet
+                | CompendiumAction::CacheInvalidate => {}
+                other => {
+                    state.stats.note_action_follow(other.as_str());
                 }
             }
         }
@@ -557,12 +596,14 @@ impl CompendiumServer {
             .filter(|s| !s.is_empty())
             .ok_or_else(|| "help requires `id` (action name)".to_string())?;
         let id = id.strip_prefix("cmp://skill/action/").unwrap_or(id);
-        let help = help_for(id)?;
-        let markdown = help_markdown(id)?;
+        let full = params.force.unwrap_or(false);
+        let help = help_for(id, full)?;
+        let markdown = help_markdown(id, full)?;
         self.record_call("help");
         Ok(json!({
             "help": help,
             "markdown": markdown,
+            "fidelity": if full { "full" } else { "compressed" },
         }))
     }
 
@@ -655,32 +696,43 @@ impl CompendiumServer {
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
 
-    /// Resolve MCP resource URI to markdown/JSON text.
-    fn read_skill_resource(&self, uri: &str) -> Result<(String, String), McpError> {
+    /// Resolve MCP resource URI to (mime, body, content_hash).
+    fn read_skill_resource(&self, uri: &str) -> Result<(String, String, String), McpError> {
         let uri = uri.trim();
-        if uri == "cmp://skill/index" {
+        let (mime, body, discovered) = if uri == "cmp://skill/index" {
             let catalog = catalog_json(&playbook_ads_json(&self.config));
             let index = skill_index_json(&self.config, catalog);
             let body = serde_json::to_string_pretty(&index).unwrap_or_else(|_| "{}".into());
-            return Ok(("application/json".into(), body));
-        }
-        if let Some(id) = parse_action_uri(uri) {
-            let md = help_markdown(id).map_err(|e| McpError::resource_not_found(e, None))?;
-            return Ok(("text/markdown".into(), md));
-        }
-        if let Some(id) = parse_playbook_uri(uri) {
+            ("application/json".into(), body, None)
+        } else if let Some(id) = parse_action_uri(uri) {
+            // Resources always serve full docs (on-demand load).
+            let md = help_markdown(id, true).map_err(|e| McpError::resource_not_found(e, None))?;
+            ("text/markdown".into(), md, Some(id.to_string()))
+        } else if let Some(id) = parse_playbook_uri(uri) {
             let pb = get_playbook(id, &self.config)
                 .map_err(|e| McpError::resource_not_found(e, None))?;
             let body = format!(
                 "# {}\n\n{}\n\n---\n\n{}\n",
                 pb.name, pb.description, pb.body
             );
-            return Ok(("text/markdown".into(), body));
+            ("text/markdown".into(), body, Some(pb.id))
+        } else {
+            return Err(McpError::resource_not_found(
+                format!("unknown resource uri: {uri}"),
+                None,
+            ));
+        };
+
+        if let Ok(mut state) = self.state.lock() {
+            if let Some(id) = discovered.as_deref() {
+                state.stats.note_lazy_full(Some(id));
+            } else {
+                state.stats.note_lazy_full(None);
+            }
         }
-        Err(McpError::resource_not_found(
-            format!("unknown resource uri: {uri}"),
-            None,
-        ))
+
+        let hash = content_etag(&body);
+        Ok((mime, body, hash))
     }
 
     fn list_skill_resources(&self) -> Vec<Resource> {
@@ -821,6 +873,10 @@ pub struct GatewayParams {
     /// When `action=stats`, reset counters after snapshot.
     pub reset: Option<bool>,
 
+    /// When true with `action=help`, return full docs (example+notes). Default compressed.
+    /// Also used by compress/summarize signal bypass when nested under those option bags.
+    pub force: Option<bool>,
+
     /// Options for `action=filter`.
     pub filter: Option<FilterOptions>,
     /// Options for `action=compress`.
@@ -910,6 +966,9 @@ impl ServerHandler for CompendiumServer {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListResourcesResult, McpError>> + Send + '_ {
+        if let Ok(mut state) = self.state.lock() {
+            state.stats.note_lazy_ad(None);
+        }
         std::future::ready(Ok(ListResourcesResult::with_all_items(
             self.list_skill_resources(),
         )))
@@ -920,12 +979,29 @@ impl ServerHandler for CompendiumServer {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<rmcp::model::ReadResourceResponse, McpError>> + Send + '_ {
-        let result = self.read_skill_resource(&request.uri).map(|(mime, text)| {
-            ReadResourceResult::new(vec![
-                ResourceContents::text(text, request.uri.clone()).with_mime_type(mime),
-            ])
+        let ttl = self.config.skill_resource_ttl_ms;
+        let result = self.read_skill_resource(&request.uri).map(|(mime, text, etag)| {
+            let mut meta = MetaObject::new();
+            meta.0.insert(
+                "etag".into(),
+                serde_json::Value::String(format!("\"{etag}\"")),
+            );
+            meta.0
+                .insert("contentHash".into(), serde_json::Value::String(etag));
+            ReadResourceResult::new(vec![ResourceContents::text(text, request.uri.clone())
+                .with_mime_type(mime)
+                .with_meta(meta)])
+            .with_ttl_ms(ttl)
             .into()
         });
         std::future::ready(result)
     }
+}
+
+fn content_etag(body: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    body.hash(&mut h);
+    format!("{:x}", h.finish())
 }

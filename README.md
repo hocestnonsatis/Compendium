@@ -117,7 +117,7 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `rerank` | BM25-rank candidates / chunks for a query | `query`, `items` or `text` or chunk `map`, `rerank?` |
 | `brief` | Scan a workspace; pack a structured starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
 | `catalog` | Short action (+ playbook) ads; prefer before guessing | _(none)_ |
-| `help` | Full usage notes + example for one action | `id` (action name) |
+| `help` | Usage notes for one action (default **compressed**; `force: true` → full) | `id`, `force?` |
 | `playbooks` | List bundled token-hygiene playbook ads | _(none)_ |
 | `playbook` | Load one playbook body (sanitized) | `id` |
 | `pack` | Zip text/files into a size-capped archive (cache and/or base64) | `text` or `items`, `pack?` |
@@ -268,6 +268,7 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_ARCHIVE_MAX_BYTES` | `2097152` | Max compressed archive size for pack/unpack |
 | `COMPENDIUM_ARCHIVE_MAX_UNCOMPRESSED` | `4194304` | Max total uncompressed bytes for pack/unpack |
 | `COMPENDIUM_ARCHIVE_MAX_FILES` | `50` | Max files per archive |
+| `COMPENDIUM_SKILL_TTL_MS` | `300000` | Soft TTL (ms) on skill `resources/read` responses |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 
 ## Example tool calls

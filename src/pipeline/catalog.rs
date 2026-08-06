@@ -22,9 +22,13 @@ pub struct ActionHelp {
     pub one_liner: &'static str,
     pub when_to_use: &'static str,
     pub fields: &'static str,
-    pub example: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub example: Option<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<&'static str>,
     pub uri: String,
+    /// `compressed` (default) or `full`.
+    pub fidelity: &'static str,
 }
 
 const ACTIONS: &[ActionAd] = &[
@@ -210,7 +214,7 @@ pub fn catalog_json(playbook_ads: &[Value]) -> Value {
         "actions": ACTIONS,
         "playbooks": playbook_ads,
         "index_uri": "cmp://skill/index",
-        "hint": "Use action=help with id=<action> or resources/read on cmp://skill/action/<id> for full docs. Prefer MCP resources when the client supports them."
+        "hint": "Default help is compressed (signature+fields). Use force=true or resources/read on cmp://skill/action/<id> for full example+notes."
     })
 }
 
@@ -236,22 +240,36 @@ pub fn catalog_markdown(playbook_lines: &[String]) -> String {
     out
 }
 
-/// Full help for one action id.
-pub fn help_for(id: &str) -> Result<ActionHelp, String> {
+/// Help for one action id.
+///
+/// Default is **compressed** (signature + fields only). Pass `full=true` for example+notes.
+pub fn help_for(id: &str, full: bool) -> Result<ActionHelp, String> {
     let ad = find_ad(id).ok_or_else(|| {
-        format!(
-            "unknown action `{id}`; call action=catalog for the list"
-        )
+        format!("unknown action `{id}`; call action=catalog for the list")
     })?;
-    Ok(ActionHelp {
-        id: ad.id,
-        one_liner: ad.one_liner,
-        when_to_use: ad.when_to_use,
-        fields: ad.fields,
-        example: example_for(ad.id),
-        notes: notes_for(ad.id),
-        uri: ad.uri.to_string(),
-    })
+    if full {
+        Ok(ActionHelp {
+            id: ad.id,
+            one_liner: ad.one_liner,
+            when_to_use: ad.when_to_use,
+            fields: ad.fields,
+            example: Some(example_for(ad.id)),
+            notes: notes_for(ad.id),
+            uri: ad.uri.to_string(),
+            fidelity: "full",
+        })
+    } else {
+        Ok(ActionHelp {
+            id: ad.id,
+            one_liner: ad.one_liner,
+            when_to_use: ad.when_to_use,
+            fields: ad.fields,
+            example: None,
+            notes: vec![],
+            uri: ad.uri.to_string(),
+            fidelity: "compressed",
+        })
+    }
 }
 
 /// Parse `cmp://skill/action/{name}` → action id.
@@ -377,10 +395,24 @@ fn notes_for(id: &str) -> Vec<&'static str> {
     }
 }
 
-/// Markdown body for resources/read on an action URI.
-pub fn help_markdown(id: &str) -> Result<String, String> {
-    let h = help_for(id)?;
-    let example = serde_json::to_string_pretty(&h.example).unwrap_or_else(|_| "{}".into());
+/// Markdown body for resources/read or help. `full` controls example/notes.
+pub fn help_markdown(id: &str, full: bool) -> Result<String, String> {
+    let h = help_for(id, full)?;
+    if !full {
+        return Ok(format!(
+            "# Action: {id}\n\n{one}\n\n**When:** {when}\n\n**Fields:** `{fields}`\n\n**URI:** `{uri}`\n\n_fidelity: compressed — pass force=true or resources/read for full example_\n",
+            id = h.id,
+            one = h.one_liner,
+            when = h.when_to_use,
+            fields = h.fields,
+            uri = h.uri,
+        ));
+    }
+    let example = h
+        .example
+        .as_ref()
+        .map(|e| serde_json::to_string_pretty(e).unwrap_or_else(|_| "{}".into()))
+        .unwrap_or_else(|| "{}".into());
     let notes = if h.notes.is_empty() {
         String::new()
     } else {
@@ -411,8 +443,14 @@ mod tests {
     fn catalog_covers_core_actions() {
         assert!(find_ad("brief").is_some());
         assert!(find_ad("FILTER").is_some());
-        assert!(help_for("chunk").is_ok());
-        assert!(help_for("nope").is_err());
+        assert!(help_for("chunk", false).is_ok());
+        let compressed = help_for("brief", false).unwrap();
+        assert_eq!(compressed.fidelity, "compressed");
+        assert!(compressed.example.is_none());
+        let full = help_for("brief", true).unwrap();
+        assert_eq!(full.fidelity, "full");
+        assert!(full.example.is_some());
+        assert!(help_for("nope", false).is_err());
     }
 
     #[test]

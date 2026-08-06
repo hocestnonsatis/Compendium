@@ -12,6 +12,8 @@ pub const DEFAULT_ARCHIVE_MAX_BYTES: u64 = 2 * 1024 * 1024;
 pub const DEFAULT_ARCHIVE_MAX_UNCOMPRESSED: u64 = 4 * 1024 * 1024;
 /// Default max files per archive.
 pub const DEFAULT_ARCHIVE_MAX_FILES: usize = 50;
+/// Default soft TTL for skill resource reads (5 minutes).
+pub const DEFAULT_SKILL_RESOURCE_TTL_MS: u64 = 300_000;
 
 /// Optional OpenAI-compatible local SLM endpoint.
 #[derive(Debug, Clone)]
@@ -79,6 +81,8 @@ pub struct Config {
     pub archive_max_uncompressed: u64,
     /// Max files per archive.
     pub archive_max_files: usize,
+    /// Soft TTL (ms) advertised on skill resource reads (MCP `ttlMs`).
+    pub skill_resource_ttl_ms: u64,
 }
 
 impl Default for Config {
@@ -96,6 +100,7 @@ impl Default for Config {
             archive_max_bytes: DEFAULT_ARCHIVE_MAX_BYTES,
             archive_max_uncompressed: DEFAULT_ARCHIVE_MAX_UNCOMPRESSED,
             archive_max_files: DEFAULT_ARCHIVE_MAX_FILES,
+            skill_resource_ttl_ms: DEFAULT_SKILL_RESOURCE_TTL_MS,
         }
     }
 }
@@ -189,6 +194,11 @@ impl Config {
                 if n > 0 {
                     cfg.archive_max_files = n;
                 }
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_SKILL_TTL_MS") {
+            if let Ok(n) = v.parse::<u64>() {
+                cfg.skill_resource_ttl_ms = n;
             }
         }
 
