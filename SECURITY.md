@@ -32,4 +32,6 @@ Compendium is an MCP server that processes untrusted tool/agent text:
 
 - Local LLM URLs must be **loopback only** (`127.0.0.1`, `::1`, `localhost`) when `COMPENDIUM_LOCAL_LLM_URL` is set.
 - Prefer `action=sanitize` / `sanitize_input` for untrusted payloads before they re-enter an agent context.
+- Playbook bodies and briefings are sanitized by default before return.
+- `pack` / `unpack` treat archives as **untrusted**: compressed/uncompressed size and file-count caps apply; **scripts inside archives are never executed**.
 - Do not paste production secrets into issues, PRs, or sample fixtures.

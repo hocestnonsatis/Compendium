@@ -7,6 +7,8 @@ alwaysApply: true
 
 When tool output, logs, JSON, or pasted blobs are large or noisy, call the MCP tool `compendium` with an `action` instead of dumping raw text into context.
 
+Unknown action? Call `action: "catalog"` (or MCP `resources/list` on `cmp://skill/…`) then `action: "help"` with `id`.
+
 ## Quick map
 
 | Situation | Call |
@@ -16,12 +18,15 @@ When tool output, logs, JSON, or pasted blobs are large or noisy, call the MCP t
 | Untrusted text / possible secrets or IPI | `action: "sanitize"` + `text` (or `sanitize_input: true`) |
 | Keep only lines about a question | `action: "filter_relevant"` or `filter` + `query` (BM25) |
 | Rank chunks for a question | `action: "rerank"` + `query` + `items` / chunk `map` |
-| New sub-task / fresh agent turn | `action: "brief"` + `query` (+ optional `brief.root`); use returned `briefing` (or `cache_key`) as the starter context |
+| New sub-task / fresh agent turn | `action: "brief"` + `query` (+ optional `brief.root`); use returned structured briefing (Status/Evidence/Caveats/Sources/Read next) or `cache_key` as starter context |
 | Dense rewrite of code/logs/JSON | `action: "compress"` + `text` (skip if &lt;~1000 chars unless `force`) |
 | Long chat / transcript | `action: "prune_history"` (`strategy: "afm"` preferred) or `summarize` / `summarize_smart` |
 | Huge file/corpus you may revisit | `action: "chunk"` then later `resolve` with `id` |
 | Park bulky payload outside prompt | `action: "cache_store"` → keep only returned `key` |
+| Guided recipe (logs, cargo fail, AFM, …) | `action: "playbooks"` then `playbook` + `id`, or read `cmp://skill/playbook/{id}` |
+| Multi-file archive bundle | `action: "pack"` / `unpack` (size-capped; scripts never run) |
 | Measure size / savings | `action: "count_tokens"` or `stats` |
+| Discover actions | `action: "catalog"` / `help`, or MCP resources `cmp://skill/index` |
 
 ## Rules of thumb
 
@@ -29,6 +34,7 @@ When tool output, logs, JSON, or pasted blobs are large or noisy, call the MCP t
 - Prefer `filter_relevant` when you already know the question the log must answer.
 - Prefer `cache_store` over re-pasting the same large blob across turns.
 - Prefer `chunk` index text over the full corpus; `resolve` only the ids you need.
+- Prefer `catalog`/`help` (or resources) over guessing action fields.
 - Do not invent other tool names (`compendium_filter`, etc.) — there is only `compendium`.
 - Response shape: `{ ok, action, result_json, error? }`. Parse `result_json` as JSON for the action payload.
 - Smart actions report `backend: "local_llm" | "heuristic"`; heuristic fallback is normal when no local SLM URL is set.

@@ -312,7 +312,13 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         brief_result
             .get("briefing")
             .and_then(|v| v.as_str())
-            .map(|s| s.contains("## Task") && s.contains("## Context"))
+            .map(|s| {
+                s.contains("## Task")
+                    && s.contains("## Status")
+                    && s.contains("## Evidence")
+                    && s.contains("## Sources")
+                    && s.contains("## Read next")
+            })
             .unwrap_or(false),
         "unexpected brief: {brief_result}"
     );
@@ -325,6 +331,138 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         "missing brief cache_key: {brief_result}"
     );
     let _ = std::fs::remove_dir_all(&brief_root);
+
+    // catalog + help
+    let catalog = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "catalog"
+            }))),
+        )
+        .await?;
+    assert_ok(&catalog, "catalog");
+    let catalog_result = gateway_result(&catalog);
+    assert!(
+        catalog_result
+            .get("catalog")
+            .and_then(|c| c.get("actions"))
+            .and_then(|a| a.as_array())
+            .map(|a| a.len() >= 10)
+            .unwrap_or(false),
+        "catalog missing actions: {catalog_result}"
+    );
+
+    let help = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "help",
+                "id": "brief"
+            }))),
+        )
+        .await?;
+    assert_ok(&help, "help");
+    let help_result = gateway_result(&help);
+    assert!(
+        help_result
+            .get("markdown")
+            .and_then(|v| v.as_str())
+            .map(|s| s.contains("Action: brief"))
+            .unwrap_or(false),
+        "unexpected help: {help_result}"
+    );
+
+    // playbooks
+    let playbooks = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "playbooks"
+            }))),
+        )
+        .await?;
+    assert_ok(&playbooks, "playbooks");
+    let pb_list = gateway_result(&playbooks);
+    assert!(
+        pb_list
+            .get("playbooks")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().any(|p| p.get("id") == Some(&json!("noisy-logs"))))
+            .unwrap_or(false),
+        "missing noisy-logs playbook: {pb_list}"
+    );
+
+    let playbook = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "playbook",
+                "id": "noisy-logs"
+            }))),
+        )
+        .await?;
+    assert_ok(&playbook, "playbook");
+
+    // MCP resources
+    let resources = client.list_all_resources().await?;
+    assert!(
+        resources.iter().any(|r| r.uri == "cmp://skill/index"),
+        "missing skill index resource; got {:?}",
+        resources.iter().map(|r| &r.uri).collect::<Vec<_>>()
+    );
+    let read = client
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(
+            "cmp://skill/action/filter",
+        ))
+        .await?;
+    let read_text = read
+        .contents
+        .iter()
+        .filter_map(|c| match c {
+            rmcp::model::ResourceContents::TextResourceContents { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        read_text.contains("filter") || read_text.contains("Action:"),
+        "unexpected resource body: {read_text}"
+    );
+
+    // pack / unpack
+    let packed = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "pack",
+                "text": "a.md\n---\nhello\n===\nb.md\n---\nworld",
+                "pack": { "store_in_cache": true, "include_base64": false }
+            }))),
+        )
+        .await?;
+    assert_ok(&packed, "pack");
+    let pack_result = gateway_result(&packed);
+    let pack_key = pack_result
+        .get("cache_key")
+        .and_then(|v| v.as_str())
+        .expect("pack cache_key")
+        .to_string();
+    assert!(pack_key.starts_with("cache://pack/"));
+
+    let unpacked = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "unpack",
+                "key": pack_key
+            }))),
+        )
+        .await?;
+    assert_ok(&unpacked, "unpack");
+    let unpack_result = gateway_result(&unpacked);
+    assert!(
+        unpack_result
+            .get("file_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+            >= 2,
+        "unexpected unpack: {unpack_result}"
+    );
 
     let cout = client
         .call_tool(

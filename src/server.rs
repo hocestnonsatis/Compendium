@@ -1,11 +1,17 @@
 //! MCP tool surface for Compendium — single gateway tool with `action` dispatch.
 
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use rmcp::{
     handler::server::wrapper::{Json, Parameters},
-    tool, tool_handler, tool_router, ServerHandler,
+    model::{
+        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
+        Resource, ResourceContents, ServerCapabilities, ServerInfo,
+    },
+    service::{RequestContext, RoleServer},
+    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,10 +21,20 @@ use crate::config::Config;
 use crate::pipeline::{
     brief::{brief, BriefOptions},
     cache::{CacheStore, CacheStoreOptions},
+    catalog::{
+        catalog_json, catalog_markdown, help_for, help_markdown, parse_action_uri, action_ads,
+    },
     chunk::{chunk_with_refs, resolve_ref, ChunkMap, ChunkOptions},
     compress::{compress, CompressOptions},
     filter::{filter, FilterOptions},
     output::{compress_output, CompressOutputOptions},
+    pack::{
+        decode_archive_bytes, pack_items, parse_pack_text, unpack_bytes, PackItem, PackOptions,
+    },
+    playbook::{
+        get_playbook, list_playbooks, parse_playbook_uri, playbook_ads_json, playbook_catalog_lines,
+        skill_index_json,
+    },
     prune::{parse_history_input, prune_history, HistoryMessage, PruneOptions},
     rerank::{parse_rerank_items, rerank, RerankItem, RerankOptions},
     sanitize::{sanitize, SanitizeOptions},
@@ -142,6 +158,12 @@ impl CompendiumServer {
             CompendiumAction::Sanitize => self.act_sanitize(params),
             CompendiumAction::Rerank => self.act_rerank(params),
             CompendiumAction::Brief => self.act_brief(params),
+            CompendiumAction::Catalog => self.act_catalog(params),
+            CompendiumAction::Help => self.act_help(params),
+            CompendiumAction::Playbooks => self.act_playbooks(params),
+            CompendiumAction::Playbook => self.act_playbook(params),
+            CompendiumAction::Pack => self.act_pack(params),
+            CompendiumAction::Unpack => self.act_unpack(params),
         };
 
         let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
@@ -511,6 +533,177 @@ impl CompendiumServer {
         self.record("brief", &result.metrics);
         Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
     }
+
+    fn act_catalog(&self, _params: GatewayParams) -> Result<Value, String> {
+        let playbooks = playbook_ads_json(&self.config);
+        let catalog = catalog_json(&playbooks);
+        let markdown = catalog_markdown(&playbook_catalog_lines(&self.config));
+        self.record_call("catalog");
+        Ok(json!({
+            "catalog": catalog,
+            "markdown": markdown,
+            "index_uri": "cmp://skill/index",
+        }))
+    }
+
+    fn act_help(&self, params: GatewayParams) -> Result<Value, String> {
+        let id = params
+            .id
+            .as_deref()
+            .or(params.key.as_deref())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "help requires `id` (action name)".to_string())?;
+        let id = id.strip_prefix("cmp://skill/action/").unwrap_or(id);
+        let help = help_for(id)?;
+        let markdown = help_markdown(id)?;
+        self.record_call("help");
+        Ok(json!({
+            "help": help,
+            "markdown": markdown,
+        }))
+    }
+
+    fn act_playbooks(&self, _params: GatewayParams) -> Result<Value, String> {
+        let playbooks = list_playbooks(&self.config);
+        self.record_call("playbooks");
+        Ok(json!({ "playbooks": playbooks }))
+    }
+
+    fn act_playbook(&self, params: GatewayParams) -> Result<Value, String> {
+        let id = params
+            .id
+            .as_deref()
+            .or(params.key.as_deref())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "playbook requires `id`".to_string())?;
+        let id = id.strip_prefix("cmp://skill/playbook/").unwrap_or(id);
+        let pb = get_playbook(id, &self.config)?;
+        self.record_call("playbook");
+        Ok(serde_json::to_value(pb).map_err(|e| e.to_string())?)
+    }
+
+    fn act_pack(&self, params: GatewayParams) -> Result<Value, String> {
+        let options = params.pack.clone().unwrap_or_default();
+        let items = if let Some(items) = params.items.as_ref() {
+            // Reuse rerank items as pack files when path-like ids present; else treat id as path.
+            let mut out = Vec::new();
+            for it in items {
+                let path = it
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| format!("item-{}.txt", out.len()));
+                out.push(PackItem {
+                    path,
+                    text: it.text.clone(),
+                });
+            }
+            out
+        } else {
+            let text = Self::require_text(&params)?;
+            parse_pack_text(&text)?
+        };
+        let mut result = pack_items(&items, &options, &self.config)?;
+        if options.store_in_cache {
+            if let Ok(mut state) = self.state.lock() {
+                let tokens = result.metrics.result_tokens;
+                state.cache.put_raw(
+                    result.cache_key.clone(),
+                    // Store raw base64 so unpack can decode from cache_get text.
+                    {
+                        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+                        B64.encode(&result.zip_bytes)
+                    },
+                    tokens,
+                );
+            }
+        }
+        self.record("pack", &result.metrics);
+        // Drop raw bytes from JSON payload.
+        result.zip_bytes.clear();
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
+
+    fn act_unpack(&self, params: GatewayParams) -> Result<Value, String> {
+        let options = params.pack.clone().unwrap_or_default();
+        let zip_bytes = if let Some(key) = params
+            .key
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let content = if let Ok(mut state) = self.state.lock() {
+                state.cache.get(key, &self.config).content
+            } else {
+                String::new()
+            };
+            if content.is_empty() {
+                return Err(format!("cache miss for pack key `{key}`"));
+            }
+            decode_archive_bytes(&content)?
+        } else {
+            let text = Self::require_text(&params)?;
+            decode_archive_bytes(&text)?
+        };
+
+        let result = unpack_bytes(&zip_bytes, &options, &self.config)?;
+        self.cache_chunks(&result.chunks);
+        self.record("unpack", &result.metrics);
+        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+    }
+
+    /// Resolve MCP resource URI to markdown/JSON text.
+    fn read_skill_resource(&self, uri: &str) -> Result<(String, String), McpError> {
+        let uri = uri.trim();
+        if uri == "cmp://skill/index" {
+            let catalog = catalog_json(&playbook_ads_json(&self.config));
+            let index = skill_index_json(&self.config, catalog);
+            let body = serde_json::to_string_pretty(&index).unwrap_or_else(|_| "{}".into());
+            return Ok(("application/json".into(), body));
+        }
+        if let Some(id) = parse_action_uri(uri) {
+            let md = help_markdown(id).map_err(|e| McpError::resource_not_found(e, None))?;
+            return Ok(("text/markdown".into(), md));
+        }
+        if let Some(id) = parse_playbook_uri(uri) {
+            let pb = get_playbook(id, &self.config)
+                .map_err(|e| McpError::resource_not_found(e, None))?;
+            let body = format!(
+                "# {}\n\n{}\n\n---\n\n{}\n",
+                pb.name, pb.description, pb.body
+            );
+            return Ok(("text/markdown".into(), body));
+        }
+        Err(McpError::resource_not_found(
+            format!("unknown resource uri: {uri}"),
+            None,
+        ))
+    }
+
+    fn list_skill_resources(&self) -> Vec<Resource> {
+        let mut resources = Vec::new();
+        resources.push(
+            Resource::new("cmp://skill/index", "skill-index")
+                .with_description("Compendium skill index (actions + playbooks)")
+                .with_mime_type("application/json"),
+        );
+        for ad in action_ads() {
+            resources.push(
+                Resource::new(ad.uri, ad.id)
+                    .with_description(ad.one_liner)
+                    .with_mime_type("text/markdown"),
+            );
+        }
+        for pb in list_playbooks(&self.config) {
+            resources.push(
+                Resource::new(pb.uri, pb.id)
+                    .with_description(pb.description)
+                    .with_mime_type("text/markdown"),
+            );
+        }
+        resources
+    }
 }
 
 /// Gateway action selector.
@@ -549,8 +742,20 @@ pub enum CompendiumAction {
     Sanitize,
     /// BM25-rank text chunks / candidates for a query.
     Rerank,
-    /// Scan a workspace for task-relevant slices and pack a starter briefing.
+    /// Scan a workspace for task-relevant slices and pack a structured starter briefing.
     Brief,
+    /// List short action (+ playbook) advertisements.
+    Catalog,
+    /// Full usage notes + example for one action.
+    Help,
+    /// List token-hygiene playbook advertisements.
+    Playbooks,
+    /// Load one playbook body by id.
+    Playbook,
+    /// Zip text/files into a bounded archive.
+    Pack,
+    /// Unpack zip with size caps into chunks (never runs scripts).
+    Unpack,
 }
 
 impl CompendiumAction {
@@ -573,6 +778,12 @@ impl CompendiumAction {
             Self::Sanitize => "sanitize",
             Self::Rerank => "rerank",
             Self::Brief => "brief",
+            Self::Catalog => "catalog",
+            Self::Help => "help",
+            Self::Playbooks => "playbooks",
+            Self::Playbook => "playbook",
+            Self::Pack => "pack",
+            Self::Unpack => "unpack",
         }
     }
 }
@@ -596,7 +807,7 @@ pub struct GatewayParams {
     /// Cache key for `cache_get` / `cache_invalidate`, or explicit key inside `cache` options.
     pub key: Option<String>,
 
-    /// Chunk id for `resolve` (from a prior `chunk` call).
+    /// Chunk id for `resolve`, or action/playbook id for `help` / `playbook`.
     pub id: Option<String>,
 
     /// Explicit chunk map JSON for `resolve` when not in session cache
@@ -627,12 +838,14 @@ pub struct GatewayParams {
     pub sanitize: Option<SanitizeOptions>,
     /// When true, scrub secrets/IPI from `text` before the chosen action runs.
     pub sanitize_input: Option<bool>,
-    /// Candidates for `action=rerank` (preferred over parsing `text`).
+    /// Candidates for `action=rerank` (preferred over parsing `text`), or files for `pack`.
     pub items: Option<Vec<RerankItem>>,
     /// Options for `action=rerank`.
     pub rerank: Option<RerankOptions>,
     /// Options for `action=brief` (workspace scan + pack).
     pub brief: Option<BriefOptions>,
+    /// Options for `action=pack` / `unpack`.
+    pub pack: Option<PackOptions>,
 }
 
 /// Gateway response envelope.
@@ -651,7 +864,7 @@ impl CompendiumServer {
     /// Token-optimization gateway — one tool, many actions via `action`.
     #[tool(
         name = "compendium",
-        description = "Token-optimization gateway. Set action to one of: filter | compress | compress_output | summarize | summarize_smart | filter_relevant | prune_history | chunk | resolve | count_tokens | stats | cache_store | cache_get | cache_invalidate | sanitize | rerank | brief. Pass text (or messages/key/id/query/items as required). Use filter(+query) or filter_relevant for BM25 keep; rerank to score chunks; brief+query to scan a workspace and pack a starter briefing; prune_history with strategy=afm for tiered memory; sanitize on untrusted output; compress/summarize for bulky blobs."
+        description = "Token-optimization gateway. Set `action` (filter, compress, brief, catalog, help, playbooks, pack/unpack, …). Prefer action=catalog or MCP resources (cmp://skill/…) for details; action=help+id for one action. Pass text/query/messages/key/id/items as required."
     )]
     fn compendium(
         &self,
@@ -663,7 +876,47 @@ impl CompendiumServer {
 
 #[tool_handler(
     name = "compendium",
-    version = "0.1.0",
-    instructions = "Call the single `compendium` tool with an `action` field. Prefer action=filter or compress_output on noisy logs; action=filter(+query) or filter_relevant for BM25 query-aware keep; action=rerank with query+items for chunk ranking; action=brief with query (+ optional brief.root) to scan the workspace and pack a compact starter briefing for a fresh agent turn; action=prune_history with prune.strategy=afm for Adaptive Focus Memory; action=sanitize on untrusted payloads; action=summarize_smart when a local SLM is configured; action=compress or cache_store for bulky blobs; action=chunk then resolve/rerank for large corpora; action=count_tokens or stats to measure savings."
+    instructions = "Call `compendium` with `action`. Prefer catalog/help or MCP resources cmp://skill/… for details. Quick map: noisy logs→filter/compress_output; untrusted→sanitize; relevance→filter_relevant/rerank; workspace start→brief; bulky→compress/cache_store/chunk+resolve; long chat→prune_history(afm); recipes→playbooks/playbook; archives→pack/unpack (size-capped, never runs scripts); measure→count_tokens/stats."
 )]
-impl ServerHandler for CompendiumServer {}
+impl ServerHandler for CompendiumServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            "compendium",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(
+            "Call `compendium` with `action`. Prefer catalog/help or MCP resources cmp://skill/… for details. Quick map: noisy logs→filter/compress_output; untrusted→sanitize; relevance→filter_relevant/rerank; workspace start→brief; bulky→compress/cache_store/chunk+resolve; long chat→prune_history(afm); recipes→playbooks/playbook; archives→pack/unpack (size-capped, never runs scripts); measure→count_tokens/stats."
+                .to_string(),
+        )
+    }
+
+    fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListResourcesResult, McpError>> + Send + '_ {
+        std::future::ready(Ok(ListResourcesResult::with_all_items(
+            self.list_skill_resources(),
+        )))
+    }
+
+    fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<rmcp::model::ReadResourceResponse, McpError>> + Send + '_ {
+        let result = self.read_skill_resource(&request.uri).map(|(mime, text)| {
+            ReadResourceResult::new(vec![
+                ResourceContents::text(text, request.uri.clone()).with_mime_type(mime),
+            ])
+            .into()
+        });
+        std::future::ready(result)
+    }
+}

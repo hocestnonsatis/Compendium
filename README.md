@@ -111,13 +111,31 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
 | `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
 | `rerank` | BM25-rank candidates / chunks for a query | `query`, `items` or `text` or chunk `map`, `rerank?` |
-| `brief` | Scan a workspace for task-relevant slices; pack a starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
+| `brief` | Scan a workspace; pack a structured starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
+| `catalog` | Short action (+ playbook) ads; prefer before guessing | _(none)_ |
+| `help` | Full usage notes + example for one action | `id` (action name) |
+| `playbooks` | List bundled token-hygiene playbook ads | _(none)_ |
+| `playbook` | Load one playbook body (sanitized) | `id` |
+| `pack` | Zip text/files into a size-capped archive (cache and/or base64) | `text` or `items`, `pack?` |
+| `unpack` | Unpack zip with caps → chunks (**never runs scripts**) | `key` or base64 `text`, `pack?` |
+
+### Progressive disclosure (skills)
+
+Tool description/instructions stay thin. Discover details on demand:
+
+- **Tool bridge:** `action=catalog` → `action=help` with `id`, or `playbooks` → `playbook`
+- **MCP resources:** `resources/list` / `resources/read` on:
+  - `cmp://skill/index` — JSON index of actions + playbooks
+  - `cmp://skill/action/{name}` — full action help (markdown)
+  - `cmp://skill/playbook/{id}` — playbook body
+
+Bundled playbooks live under [`playbooks/`](playbooks/). Override/extend with `COMPENDIUM_PLAYBOOKS_DIR` (same `id` wins). Archives honor `COMPENDIUM_ARCHIVE_MAX_BYTES` / `_UNCOMPRESSED` / `_FILES` (defaults 2 MiB / 4 MiB / 50).
 
 Optional on most text actions: `sanitize_input: true` scrubs before processing. Soft payloads under `COMPENDIUM_SIGNAL_MIN_CHARS` (default 1000) bypass `compress` / `summarize` / `summarize_smart` unless `force: true`.
 
 `filter` accepts optional `query` (top-level or `filter.query`) for BM25 line keep. `prune_history` supports `prune.strategy: "afm"` (Critical / Thematic / Distant tiers; distant blob cached for `cache_get`).
 
-`brief` walks `brief.root` (default: process cwd) with `.gitignore` / `.ignore` via the `ignore` crate, BM25-ranks paths and chunks for `query`, then returns a compact `briefing` plus `cache_key` (`cache://brief/…`, also stored in the session cache). Use that briefing to start a fresh agent turn without pasting the whole repo. Optional `COMPENDIUM_BRIEF_ROOT` restricts allowed roots (useful for HTTP). Briefings are sanitized by default.
+`brief` walks `brief.root` (default: process cwd) with `.gitignore` / `.ignore`, BM25-ranks paths/chunks, window-reads oversized files (not head-truncate), and returns a structured `briefing`: **Task / Status / Evidence / Caveats / Sources / Read next**, plus `cache_key`. Status uses a local SLM when `COMPENDIUM_LOCAL_LLM_URL` is set (`backend: local_llm`); otherwise heuristic bullets. Caveats flag truncated files and docs older than selected code. **Read next** includes source paths plus suggested `cmp://skill/playbook/…` / action URIs. Optional `COMPENDIUM_BRIEF_ROOT` restricts allowed roots. Briefings are sanitized by default.
 
 Example:
 
@@ -134,14 +152,11 @@ Response envelope: `{ "ok": true, "action": "filter", "result_json": "{...}" }`.
 ## Project layout
 
 ```
-package.json / bin/run.js  # npm wrapper for npx compendium-mcp
-npm/                       # platform packages + distribution docs
-.github/workflows/         # release cross-compile + npm publish
 src/
   main.rs              # CLI: stdio | http
   lib.rs
   config.rs            # COMPENDIUM_* env config
-  server.rs            # MCP tool handlers (rmcp macros)
+  server.rs            # MCP tool + resources handlers (rmcp)
   http.rs              # Streamable HTTP/SSE (feature = "http")
   pipeline/
     tokens.rs          # heuristic or tiktoken BPE (feature = "real-tokens")
@@ -152,12 +167,16 @@ src/
     local_llm.rs       # OpenAI-compatible local SLM client
     chunk.rs           # chunk + resolve
     cache.rs           # session key/value cache
+    catalog.rs         # action ads + help (progressive disclosure)
+    playbook.rs        # bundled / dir playbooks
+    pack.rs            # zip pack/unpack with size caps
     stats.rs           # session savings counters
     prune.rs           # conversation history pruning
     output.rs          # domain-aware compress_output
+playbooks/             # embedded skill-md playbooks
 tests/
   integration.rs
-  e2e_smoke.rs         # spawns binary, MCP handshake, all tools
+  e2e_smoke.rs         # spawns binary, MCP handshake, tools + resources
 ```
 
 ## Build
@@ -239,6 +258,10 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
 | `COMPENDIUM_SIGNAL_MIN_CHARS` | `1000` | Bypass compress/summarize below this length (`0` disables) |
 | `COMPENDIUM_BRIEF_ROOT` | _(unset)_ | When set, `action=brief` may only scan roots under this canonical path |
+| `COMPENDIUM_PLAYBOOKS_DIR` | _(unset)_ | Extra/override playbook `*.md` directory (same `id` replaces embedded) |
+| `COMPENDIUM_ARCHIVE_MAX_BYTES` | `2097152` | Max compressed archive size for pack/unpack |
+| `COMPENDIUM_ARCHIVE_MAX_UNCOMPRESSED` | `4194304` | Max total uncompressed bytes for pack/unpack |
+| `COMPENDIUM_ARCHIVE_MAX_FILES` | `50` | Max files per archive |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 
 ## Example tool calls
@@ -319,7 +342,7 @@ Without `COMPENDIUM_LOCAL_LLM_URL`, `summarize_smart` / `filter_relevant` automa
 }
 ```
 
-Start the new turn with the returned `briefing` (or `cache_get` the `cache_key`). The host should not paste the whole tree into the prompt first.
+Start the new turn with the returned `briefing` (or `cache_get` the `cache_key`). The host should not paste the whole tree into the prompt first. Treat Status as a starter synthesis — verify Caveats and Read next before large edits.
 
 ## Local small language model
 

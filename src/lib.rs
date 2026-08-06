@@ -11,14 +11,22 @@ pub mod http;
 pub mod pipeline;
 pub mod server;
 
-pub use config::{Config, LocalLlmConfig, DEFAULT_SIGNAL_MIN_CHARS};
+pub use config::{
+    Config, LocalLlmConfig, DEFAULT_ARCHIVE_MAX_BYTES, DEFAULT_ARCHIVE_MAX_FILES,
+    DEFAULT_ARCHIVE_MAX_UNCOMPRESSED, DEFAULT_SIGNAL_MIN_CHARS,
+};
 pub use pipeline::{
     brief::{brief, BriefOptions, BriefResult, BriefSource},
     cache::{CacheGetResult, CacheInvalidateResult, CacheStoreOptions, CacheStoreResult},
+    catalog::{action_ads, catalog_json, help_for, ActionAd, ActionHelp},
     chunk::{chunk_with_refs, resolve_chunk, resolve_ref, ChunkMap, ChunkOptions, ResolveResult},
     compress::{compress, CompressOptions, CompressResult},
     filter::{filter, FilterOptions, FilterResult},
     output::{compress_output, CompressOutputOptions, CompressOutputResult},
+    pack::{
+        pack_items, parse_pack_text, unpack_bytes, PackItem, PackOptions, PackResult, UnpackResult,
+    },
+    playbook::{get_playbook, list_playbooks, Playbook, PlaybookAd},
     prune::{
         parse_history_input, prune_history, AfmTier, HistoryMessage, PruneOptions, PruneResult,
         PruneStrategy,

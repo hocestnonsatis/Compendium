@@ -32,6 +32,7 @@ http = [
 [dependencies]
 anyhow = "1.0.104"
 axum = { version = "0.8", optional = true }
+base64 = "0.22"
 ignore = "0.4"
 regex = "1.13.1"
 # OpenAI-compatible local SLM client (Ollama / Lemonade / llama.cpp server).
@@ -47,6 +48,7 @@ tokio-util = { version = "0.7", optional = true, features = ["rt"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 unicode-segmentation = "1.13.3"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 # Client + child-process transport for E2E smoke tests (features merge with [dependencies]).

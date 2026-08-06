@@ -1,9 +1,17 @@
 //! Runtime configuration loaded from environment variables.
 
 use std::env;
+use std::path::PathBuf;
 
 /// Default character threshold for signal-to-call bypass (compress/summarize).
 pub const DEFAULT_SIGNAL_MIN_CHARS: usize = 1_000;
+
+/// Default archive compressed size cap (2 MiB).
+pub const DEFAULT_ARCHIVE_MAX_BYTES: u64 = 2 * 1024 * 1024;
+/// Default archive uncompressed size cap (4 MiB).
+pub const DEFAULT_ARCHIVE_MAX_UNCOMPRESSED: u64 = 4 * 1024 * 1024;
+/// Default max files per archive.
+pub const DEFAULT_ARCHIVE_MAX_FILES: usize = 50;
 
 /// Optional OpenAI-compatible local SLM endpoint.
 #[derive(Debug, Clone)]
@@ -63,6 +71,14 @@ pub struct Config {
     /// Character threshold for signal-to-call: compress/summarize bypass below this
     /// (0 disables bypass). Default 1000.
     pub signal_min_chars: usize,
+    /// Optional directory of extra/override playbooks (`*.md`).
+    pub playbooks_dir: Option<PathBuf>,
+    /// Archive download/pack size cap (compressed).
+    pub archive_max_bytes: u64,
+    /// Archive uncompressed size cap.
+    pub archive_max_uncompressed: u64,
+    /// Max files per archive.
+    pub archive_max_files: usize,
 }
 
 impl Default for Config {
@@ -76,6 +92,10 @@ impl Default for Config {
             http_bind: "127.0.0.1:8788".into(),
             local_llm: LocalLlmConfig::default(),
             signal_min_chars: DEFAULT_SIGNAL_MIN_CHARS,
+            playbooks_dir: None,
+            archive_max_bytes: DEFAULT_ARCHIVE_MAX_BYTES,
+            archive_max_uncompressed: DEFAULT_ARCHIVE_MAX_UNCOMPRESSED,
+            archive_max_files: DEFAULT_ARCHIVE_MAX_FILES,
         }
     }
 }
@@ -142,6 +162,33 @@ impl Config {
         if let Ok(v) = env::var("COMPENDIUM_SIGNAL_MIN_CHARS") {
             if let Ok(n) = v.parse::<usize>() {
                 cfg.signal_min_chars = n;
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_PLAYBOOKS_DIR") {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                cfg.playbooks_dir = Some(PathBuf::from(trimmed));
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_ARCHIVE_MAX_BYTES") {
+            if let Ok(n) = v.parse::<u64>() {
+                if n > 0 {
+                    cfg.archive_max_bytes = n;
+                }
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_ARCHIVE_MAX_UNCOMPRESSED") {
+            if let Ok(n) = v.parse::<u64>() {
+                if n > 0 {
+                    cfg.archive_max_uncompressed = n;
+                }
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_ARCHIVE_MAX_FILES") {
+            if let Ok(n) = v.parse::<usize>() {
+                if n > 0 {
+                    cfg.archive_max_files = n;
+                }
             }
         }
 
