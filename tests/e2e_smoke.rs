@@ -69,7 +69,11 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
 
     let tools = client.list_all_tools().await?;
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-    assert_eq!(names, vec!["compendium"], "expected single gateway; have {names:?}");
+    assert_eq!(
+        names,
+        vec!["compendium"],
+        "expected single gateway; have {names:?}"
+    );
 
     // filter
     let filter = client
@@ -361,12 +365,9 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         )
         .await?;
     assert_ok(&help, "help");
-        let help_result = gateway_result(&help);
+    let help_result = gateway_result(&help);
     assert!(
-        help_result
-            .get("fidelity")
-            .and_then(|v| v.as_str())
-            == Some("compressed"),
+        help_result.get("fidelity").and_then(|v| v.as_str()) == Some("compressed"),
         "default help should be compressed: {help_result}"
     );
     assert!(
@@ -524,7 +525,8 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         .and_then(|v| v.as_str())
         .unwrap_or_default();
     assert!(
-        scrub_content.contains("STRIPPED_POISON_PARAM") || scrub_content.contains("NEUTRALIZED_IPI"),
+        scrub_content.contains("STRIPPED_POISON_PARAM")
+            || scrub_content.contains("NEUTRALIZED_IPI"),
         "expected poison/IPI scrub: {scrub_result}"
     );
 
@@ -547,15 +549,25 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
             >= 1
     );
     assert!(
-        stats_payload.get("token_backend").and_then(|v| v.as_str()).is_some(),
+        stats_payload
+            .get("token_backend")
+            .and_then(|v| v.as_str())
+            .is_some(),
         "expected token_backend in stats: {stats_payload}"
     );
     assert!(
-        stats_payload.get("compression_ratio").and_then(|v| v.as_f64()).is_some(),
+        stats_payload
+            .get("compression_ratio")
+            .and_then(|v| v.as_f64())
+            .is_some(),
         "expected compression_ratio: {stats_payload}"
     );
     assert!(
-        stats_payload.get("lazy_ad_calls").and_then(|v| v.as_u64()).unwrap_or(0) >= 1,
+        stats_payload
+            .get("lazy_ad_calls")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+            >= 1,
         "expected lazy_ad_calls after catalog/help: {stats_payload}"
     );
     assert!(
@@ -567,6 +579,28 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
                 .unwrap_or(0)
                 >= 1,
         "expected latency telemetry or calls: {stats_payload}"
+    );
+
+    let llm_status = client
+        .call_tool(
+            CallToolRequestParams::new("compendium").with_arguments(args_object(json!({
+                "action": "llm_status"
+            }))),
+        )
+        .await?;
+    assert_ok(&llm_status, "llm_status");
+    let llm_status_result = gateway_result(&llm_status);
+    assert_eq!(
+        llm_status_result.get("configured"),
+        Some(&json!(false)),
+        "expected unconfigured llm_status: {llm_status_result}"
+    );
+    assert!(
+        llm_status_result
+            .get("fallback_reason")
+            .and_then(|v| v.as_str())
+            .is_some(),
+        "missing fallback_reason: {llm_status_result}"
     );
 
     let _ = client

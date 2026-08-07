@@ -63,7 +63,7 @@ pub fn estimate_tokens(text: &str, config: &Config) -> usize {
 
     #[cfg(feature = "real-tokens")]
     {
-        return bpe::count(text, &config.tokenizer);
+        bpe::count(text, &config.tokenizer)
     }
 
     #[cfg(not(feature = "real-tokens"))]
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(token_backend(), TokenBackend::Tiktoken);
         // Known cl100k_base count for a short English phrase.
         let n = estimate_tokens("hello world", &Config::default());
-        assert!(n >= 2 && n <= 4, "unexpected count {n}");
+        assert!((2..=4).contains(&n), "unexpected count {n}");
     }
 
     #[cfg(not(feature = "real-tokens"))]

@@ -18,9 +18,12 @@ pub fn mcp_icons() -> Vec<Icon> {
         Icon::new(format!("data:image/png;base64,{}", B64.encode(ICON_PNG_48)))
             .with_mime_type("image/png")
             .with_sizes(vec!["48x48".into()]),
-        Icon::new(format!("data:image/svg+xml;base64,{}", B64.encode(ICON_SVG)))
-            .with_mime_type("image/svg+xml")
-            .with_sizes(vec!["any".into()]),
+        Icon::new(format!(
+            "data:image/svg+xml;base64,{}",
+            B64.encode(ICON_SVG)
+        ))
+        .with_mime_type("image/svg+xml")
+        .with_sizes(vec!["any".into()]),
     ]
 }
 

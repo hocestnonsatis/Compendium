@@ -7,11 +7,7 @@
 use std::sync::Arc;
 
 use compendium::{CompendiumServer, Config};
-use rmcp::{
-    model::CallToolRequestParams,
-    transport::StreamableHttpClientTransport,
-    ServiceExt,
-};
+use rmcp::{model::CallToolRequestParams, transport::StreamableHttpClientTransport, ServiceExt};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
@@ -33,10 +29,7 @@ async fn spawn_http_server() -> (String, CancellationToken) {
         .with_json_response(true)
         .with_sse_keep_alive(None)
         .with_cancellation_token(ct.clone())
-        .with_allowed_hosts(vec![
-            "127.0.0.1".to_string(),
-            "localhost".to_string(),
-        ]);
+        .with_allowed_hosts(vec!["127.0.0.1".to_string(), "localhost".to_string()]);
 
     let config = Config::default();
     let service: StreamableHttpService<CompendiumServer, LocalSessionManager> =
@@ -96,13 +89,7 @@ async fn smoke_http_gateway_count_tokens() -> anyhow::Result<()> {
             .and_then(|v| v.as_str())
             .expect("result_json"),
     )?;
-    assert!(
-        inner
-            .get("tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0)
-            >= 1
-    );
+    assert!(inner.get("tokens").and_then(|v| v.as_u64()).unwrap_or(0) >= 1);
 
     client.cancel().await?;
     ct.cancel();

@@ -22,6 +22,8 @@ Local MCP without npm:
 COMPENDIUM_BINARY=./target/release/compendium node bin/run.js
 ```
 
+CI (GitHub Actions) runs `fmt`, `clippy -D warnings`, `cargo test`, and HTTP smoke on push/PR to `main`/`master`.
+
 Optional local SLM (Ollama / any OpenAI-compatible loopback server):
 
 ```bash

@@ -98,10 +98,7 @@ pub fn compress(input: &str, options: &CompressOptions, config: &Config) -> Comp
                 strip_ansi: true,
                 collapse_whitespace: true,
                 strip_boilerplate: true,
-                densify_json: matches!(
-                    options.content_type,
-                    ContentType::Json | ContentType::Auto
-                ),
+                densify_json: matches!(options.content_type, ContentType::Json | ContentType::Auto),
                 max_tokens: None,
                 ..Default::default()
             },
@@ -221,7 +218,9 @@ fn extract_entities(text: &str) -> Vec<String> {
         };
         let mut count = 0usize;
         for m in re.find_iter(text) {
-            let s = m.as_str().trim_matches(|c| matches!(c, ',' | ';' | '.' | ')'));
+            let s = m
+                .as_str()
+                .trim_matches(|c| matches!(c, ',' | ';' | '.' | ')'));
             if s.len() < 3 || !seen.insert(s.to_string()) {
                 continue;
             }
@@ -278,7 +277,11 @@ fn compact_value(value: &serde_json::Value, depth: usize) -> serde_json::Value {
     use serde_json::{json, Value};
     match value {
         Value::Array(arr) if arr.len() > 8 && depth > 0 => {
-            let head: Vec<Value> = arr.iter().take(3).map(|v| compact_value(v, depth + 1)).collect();
+            let head: Vec<Value> = arr
+                .iter()
+                .take(3)
+                .map(|v| compact_value(v, depth + 1))
+                .collect();
             let tail: Vec<Value> = arr
                 .iter()
                 .rev()
@@ -308,12 +311,12 @@ fn compact_value(value: &serde_json::Value, depth: usize) -> serde_json::Value {
             }
             Value::Object(out)
         }
-        Value::Array(arr) => Value::Array(
-            arr.iter()
-                .map(|v| compact_value(v, depth + 1))
-                .collect(),
-        ),
-        Value::String(s) if s.len() > 240 => Value::String(format!("{}…(+{}c)", &s[..200], s.len() - 200)),
+        Value::Array(arr) => {
+            Value::Array(arr.iter().map(|v| compact_value(v, depth + 1)).collect())
+        }
+        Value::String(s) if s.len() > 240 => {
+            Value::String(format!("{}…(+{}c)", &s[..200], s.len() - 200))
+        }
         other => other.clone(),
     }
 }

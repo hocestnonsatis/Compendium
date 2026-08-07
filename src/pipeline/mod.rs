@@ -1,5 +1,6 @@
 //! Token-optimization pipeline primitives.
 
+pub mod audit;
 pub mod bm25;
 pub mod brief;
 pub mod cache;

@@ -112,7 +112,7 @@ const ACTIONS: &[ActionAd] = &[
     ActionAd {
         id: "cache_store",
         one_liner: "Park bulky payload outside the prompt",
-        when_to_use: "Keep only a cache:// key across turns",
+        when_to_use: "Keep only a cache:// key; set COMPENDIUM_CACHE_DIR to survive restarts",
         fields: "text, cache?",
         uri: "cmp://skill/action/cache_store",
     },
@@ -139,7 +139,7 @@ const ACTIONS: &[ActionAd] = &[
     },
     ActionAd {
         id: "rerank",
-        one_liner: "BM25-rank candidates / chunks for a query",
+        one_liner: "BM25 (+ optional loopback embeddings) rank for a query",
         when_to_use: "Pick the best chunks from a map or item list",
         fields: "query, items|text|map, rerank?",
         uri: "cmp://skill/action/rerank",
@@ -150,6 +150,13 @@ const ACTIONS: &[ActionAd] = &[
         when_to_use: "Fresh agent turn / sub-task starter context",
         fields: "query, brief?, text?",
         uri: "cmp://skill/action/brief",
+    },
+    ActionAd {
+        id: "llm_status",
+        one_liner: "Probe local LLM URL / models (why heuristic fallback?)",
+        when_to_use: "Smart or hybrid actions unexpectedly use heuristics",
+        fields: "force? (true = also tiny chat probe)",
+        uri: "cmp://skill/action/llm_status",
     },
     ActionAd {
         id: "catalog",
@@ -203,9 +210,7 @@ pub fn action_ads() -> &'static [ActionAd] {
 /// Look up an ad by id (case-insensitive).
 pub fn find_ad(id: &str) -> Option<&'static ActionAd> {
     let needle = id.trim();
-    ACTIONS
-        .iter()
-        .find(|a| a.id.eq_ignore_ascii_case(needle))
+    ACTIONS.iter().find(|a| a.id.eq_ignore_ascii_case(needle))
 }
 
 /// Compact catalog JSON (ads only).
@@ -234,9 +239,7 @@ pub fn catalog_markdown(playbook_lines: &[String]) -> String {
             out.push('\n');
         }
     }
-    out.push_str(
-        "\nLoad details: `action=help` + `id`, or MCP `resources/read` on the uri.\n",
-    );
+    out.push_str("\nLoad details: `action=help` + `id`, or MCP `resources/read` on the uri.\n");
     out
 }
 
@@ -244,9 +247,8 @@ pub fn catalog_markdown(playbook_lines: &[String]) -> String {
 ///
 /// Default is **compressed** (signature + fields only). Pass `full=true` for example+notes.
 pub fn help_for(id: &str, full: bool) -> Result<ActionHelp, String> {
-    let ad = find_ad(id).ok_or_else(|| {
-        format!("unknown action `{id}`; call action=catalog for the list")
-    })?;
+    let ad = find_ad(id)
+        .ok_or_else(|| format!("unknown action `{id}`; call action=catalog for the list"))?;
     if full {
         Ok(ActionHelp {
             id: ad.id,
@@ -347,8 +349,9 @@ fn example_for(id: &str) -> Value {
             "action": "rerank",
             "query": "auth middleware",
             "items": [{ "id": "a", "text": "…" }, { "id": "b", "text": "…" }],
-            "rerank": { "top_k": 3 }
+            "rerank": { "top_k": 3, "use_embeddings": true, "alpha": 0.55 }
         }),
+        "llm_status" => json!({ "action": "llm_status", "force": false }),
         "brief" => json!({
             "action": "brief",
             "query": "how does the MCP gateway dispatch actions?",
@@ -381,6 +384,16 @@ fn notes_for(id: &str) -> Vec<&'static str> {
             "Returns structured briefing + cache_key; sanitized by default.",
             "Optional COMPENDIUM_BRIEF_ROOT restricts allowed roots.",
             "Read next may include skill URIs (cmp://skill/…).",
+            "Chunk rerank uses hybrid BM25+embeddings when COMPENDIUM_LOCAL_LLM_URL is set.",
+        ],
+        "rerank" => vec![
+            "Default: try loopback embeddings (COMPENDIUM_LOCAL_EMBED_MODEL or chat model) and blend with BM25.",
+            "use_embeddings=false forces pure BM25; alpha / COMPENDIUM_HYBRID_ALPHA sets BM25 weight (default 0.55).",
+            "Without a reachable local LLM, backend stays bm25 with fallback_reason.",
+        ],
+        "llm_status" => vec![
+            "Reports whether COMPENDIUM_LOCAL_LLM_URL is set and reachable (GET /models).",
+            "force=true also runs a tiny chat completion probe (may load the model).",
         ],
         "prune_history" => vec![
             "strategy=afm is preferred: Critical / Thematic / Distant tiers.",

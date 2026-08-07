@@ -25,9 +25,10 @@ async fn summarize_smart_uses_local_llm_when_configured() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(openai_chat_body(
-            "# Summary\n- local model wrote this\n",
-        )))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(openai_chat_body("# Summary\n- local model wrote this\n")),
+        )
         .mount(&server)
         .await;
 
@@ -36,6 +37,7 @@ async fn summarize_smart_uses_local_llm_when_configured() {
             enabled: true,
             base_url: Some(format!("{}/v1", server.uri())),
             model: "mock-model".into(),
+            embedding_model: None,
             api_key: None,
             timeout_secs: 10,
         },
@@ -73,9 +75,10 @@ async fn filter_relevant_uses_local_llm_when_configured() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(openai_chat_body(
-            "ERROR auth failed\nWARN auth retry",
-        )))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(openai_chat_body("ERROR auth failed\nWARN auth retry")),
+        )
         .mount(&server)
         .await;
 
@@ -84,6 +87,7 @@ async fn filter_relevant_uses_local_llm_when_configured() {
             enabled: true,
             base_url: Some(format!("{}/v1", server.uri())),
             model: "mock-model".into(),
+            embedding_model: None,
             api_key: Some("secret".into()),
             timeout_secs: 10,
         },
@@ -110,4 +114,77 @@ async fn filter_relevant_uses_local_llm_when_configured() {
     assert_eq!(result.backend, SmartBackend::LocalLlm);
     assert!(result.content.contains("auth"));
     assert!(!result.content.contains("DEBUG"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rerank_hybrid_uses_embeddings_when_configured() {
+    use compendium::{rerank, RerankItem, RerankOptions};
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [{ "id": "mock-embed" }]
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/embeddings"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [
+                { "index": 0, "embedding": [1.0, 0.0, 0.0] },
+                { "index": 1, "embedding": [0.1, 0.9, 0.0] },
+                { "index": 2, "embedding": [0.95, 0.05, 0.0] },
+                { "index": 3, "embedding": [0.0, 1.0, 0.0] }
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    let config = Config {
+        local_llm: LocalLlmConfig {
+            enabled: true,
+            base_url: Some(format!("{}/v1", server.uri())),
+            model: "mock-chat".into(),
+            embedding_model: Some("mock-embed".into()),
+            api_key: None,
+            timeout_secs: 10,
+        },
+        ..Config::default()
+    };
+
+    let items = vec![
+        RerankItem {
+            id: Some("noise".into()),
+            text: "css layout sidebar".into(),
+        },
+        RerankItem {
+            id: Some("auth".into()),
+            text: "auth token refresh".into(),
+        },
+        RerankItem {
+            id: Some("other".into()),
+            text: "database inventory".into(),
+        },
+    ];
+
+    let result = tokio::task::spawn_blocking(move || {
+        rerank(
+            "auth token",
+            &items,
+            &RerankOptions {
+                top_k: Some(2),
+                use_embeddings: true,
+                alpha: Some(0.3),
+                ..Default::default()
+            },
+            &config,
+        )
+    })
+    .await
+    .expect("join");
+
+    assert_eq!(result.backend, "hybrid");
+    assert!(result.fallback_reason.is_none());
+    assert_eq!(result.hits[0].id.as_deref(), Some("auth"));
 }

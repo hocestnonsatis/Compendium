@@ -80,6 +80,8 @@ Binary packaging details for maintainers: [npm/DISTRIBUTION.md](npm/DISTRIBUTION
 ## Community
 
 - [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+- [Architecture](docs/architecture.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 - [Support](SUPPORT.md)
@@ -114,14 +116,15 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `cache_get` | Retrieve by key | `key` |
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
 | `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
-| `rerank` | BM25-rank candidates / chunks for a query | `query`, `items` or `text` or chunk `map`, `rerank?` |
+| `rerank` | BM25 (+ optional loopback embeddings) rank candidates / chunks | `query`, `items` or `text` or chunk `map`, `rerank?` |
 | `brief` | Scan a workspace; pack a structured starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
 | `catalog` | Short action (+ playbook) ads; prefer before guessing | _(none)_ |
 | `help` | Usage notes for one action (default **compressed**; `force: true` → full) | `id`, `force?` |
-| `playbooks` | List bundled token-hygiene playbook ads | _(none)_ |
-| `playbook` | Load one playbook body (sanitized) | `id` |
-| `pack` | Zip text/files into a size-capped archive (cache and/or base64) | `text` or `items`, `pack?` |
-| `unpack` | Unpack zip with caps → chunks (**never runs scripts**) | `key` or base64 `text`, `pack?` |
+| `playbooks` | List playbook ads | _(none)_ |
+| `playbook` | Load one playbook body | `id` |
+| `pack` | Zip text/files into a bounded archive | `text` or `items`, `pack?` |
+| `unpack` | Unpack zip with size caps into chunks (never runs scripts) | `text` or `key`, `pack?` |
+| `llm_status` | Probe configured local LLM (models; `force` = chat ping) | `force?` |
 
 ### Progressive disclosure (skills)
 
@@ -157,6 +160,8 @@ Response envelope: `{ "ok": true, "action": "filter", "result_json": "{...}" }`.
 
 ```
 assets/                # brand mark (SVG/PNG); baked into MCP icons via data URI
+docs/                  # architecture notes
+examples/              # sample MCP tool-call JSON payloads
 src/
   main.rs              # CLI: stdio | http
   lib.rs
@@ -172,7 +177,7 @@ src/
     smart.rs           # summarize_smart + filter_relevant
     local_llm.rs       # OpenAI-compatible local SLM client
     chunk.rs           # chunk + resolve
-    cache.rs           # session key/value cache
+    cache.rs           # session key/value cache (+ optional disk)
     catalog.rs         # action ads + help (progressive disclosure)
     playbook.rs        # bundled / dir playbooks
     pack.rs            # zip pack/unpack with size caps
@@ -183,6 +188,8 @@ playbooks/             # embedded skill-md playbooks
 tests/
   integration.rs
   e2e_smoke.rs         # spawns binary, MCP handshake, tools + resources
+CHANGELOG.md
+REPORT.md              # design essay + Shipped/Next/Deferred roadmap
 ```
 
 ## Build
@@ -260,6 +267,9 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_HTTP_BIND` | `127.0.0.1:8788` | Default HTTP listen address |
 | `COMPENDIUM_LOCAL_LLM_URL` | _(unset)_ | OpenAI-compatible base URL (e.g. `http://127.0.0.1:11434/v1` or `http://127.0.0.1:13305/api/v1`). Enables smart actions. |
 | `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id on that server (Ollama: e.g. `qwen:latest`) |
+| `COMPENDIUM_LOCAL_EMBED_MODEL` | _(same as chat)_ | Embeddings model for hybrid `rerank` / `brief` (e.g. `nomic-embed-text`) |
+| `COMPENDIUM_HYBRID_ALPHA` | `0.55` | BM25 weight in hybrid score (0–1); remainder is embedding cosine |
+| `COMPENDIUM_AUDIT_PATH` | _(unset)_ | Append-only JSONL audit log (action metadata only; no payloads) |
 | `COMPENDIUM_LOCAL_LLM_API_KEY` | _(unset)_ | Optional bearer token for locked loopback servers |
 | `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
 | `COMPENDIUM_SIGNAL_MIN_CHARS` | `1000` | Bypass compress/summarize below this length (`0` disables) |
@@ -269,6 +279,8 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_ARCHIVE_MAX_UNCOMPRESSED` | `4194304` | Max total uncompressed bytes for pack/unpack |
 | `COMPENDIUM_ARCHIVE_MAX_FILES` | `50` | Max files per archive |
 | `COMPENDIUM_SKILL_TTL_MS` | `300000` | Soft TTL (ms) on skill `resources/read` responses |
+| `COMPENDIUM_CACHE_DIR` | _(unset)_ | Persist session cache (chunks/cache keys) across restarts; default size cap 64 MiB |
+| `COMPENDIUM_CACHE_MAX_BYTES` | _(unset / 64MiB with dir)_ | Soft cap on total cached payload bytes |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 
 ## Example tool calls

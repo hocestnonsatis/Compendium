@@ -85,6 +85,21 @@ pub struct SessionStats {
     #[serde(default)]
     pub by_backend: HashMap<String, usize>,
     pub by_tool: HashMap<String, ToolStats>,
+    /// Cache hit counters (merged from session [`CacheStore`] on `stats`).
+    #[serde(default)]
+    pub cache_hits: usize,
+    #[serde(default)]
+    pub cache_misses: usize,
+    #[serde(default)]
+    pub cache_disk_loads: usize,
+    #[serde(default)]
+    pub cache_evictions: usize,
+    #[serde(default)]
+    pub cache_entries: usize,
+    #[serde(default)]
+    pub cache_bytes: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_dir: Option<String>,
     #[serde(skip)]
     latency_samples_ms: Vec<f64>,
     /// Last discovered action/playbook id awaiting follow-through.
@@ -100,7 +115,9 @@ impl SessionStats {
     }
 
     pub fn record_with_meta(&mut self, tool: &str, metrics: &TokenMetrics, meta: &CallMeta) {
-        let saved = metrics.original_tokens.saturating_sub(metrics.result_tokens);
+        let saved = metrics
+            .original_tokens
+            .saturating_sub(metrics.result_tokens);
         self.total_calls += 1;
         self.original_tokens += metrics.original_tokens;
         self.result_tokens += metrics.result_tokens;

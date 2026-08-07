@@ -59,9 +59,7 @@ impl Default for PackOptions {
 impl PackOptions {
     fn resolved(&self, config: &Config) -> ResolvedCaps {
         ResolvedCaps {
-            max_size_bytes: self
-                .max_size_bytes
-                .unwrap_or(config.archive_max_bytes),
+            max_size_bytes: self.max_size_bytes.unwrap_or(config.archive_max_bytes),
             max_uncompressed_bytes: self
                 .max_uncompressed_bytes
                 .unwrap_or(config.archive_max_uncompressed),
@@ -115,7 +113,11 @@ pub struct UnpackResult {
 }
 
 /// Pack items into a zip. Rejects when caps would be exceeded.
-pub fn pack_items(items: &[PackItem], options: &PackOptions, config: &Config) -> Result<PackResult, String> {
+pub fn pack_items(
+    items: &[PackItem],
+    options: &PackOptions,
+    config: &Config,
+) -> Result<PackResult, String> {
     let caps = options.resolved(config);
     if items.is_empty() {
         return Err("pack requires at least one file".into());
@@ -145,8 +147,7 @@ pub fn pack_items(items: &[PackItem], options: &PackOptions, config: &Config) ->
             }
             zip.start_file(path, opts)
                 .map_err(|e| format!("zip start_file: {e}"))?;
-            zip.write_all(data)
-                .map_err(|e| format!("zip write: {e}"))?;
+            zip.write_all(data).map_err(|e| format!("zip write: {e}"))?;
         }
         zip.finish().map_err(|e| format!("zip finish: {e}"))?;
     }
@@ -218,7 +219,9 @@ pub fn parse_pack_text(text: &str) -> Result<Vec<PackItem>, String> {
         let (path, body) = if let Some((p, b)) = part.split_once("\n---\n") {
             (p.trim(), b.to_string())
         } else {
-            return Err("each pack section needs `path\\n---\\nbody` (separate files with ===)".into());
+            return Err(
+                "each pack section needs `path\\n---\\nbody` (separate files with ===)".into(),
+            );
         };
         if path.is_empty() {
             return Err("pack section missing path".into());
@@ -257,8 +260,7 @@ pub fn unpack_bytes(
     }
 
     let cursor = Cursor::new(zip_bytes);
-    let mut archive =
-        ZipArchive::new(cursor).map_err(|e| format!("invalid zip archive: {e}"))?;
+    let mut archive = ZipArchive::new(cursor).map_err(|e| format!("invalid zip archive: {e}"))?;
 
     if archive.len() > caps.max_files {
         return Err(format!(
@@ -286,7 +288,11 @@ pub fn unpack_bytes(
             .to_string();
         // Reject absolute / escape paths already handled by enclosed_name.
         let mut buf = Vec::new();
-        let mut limited = file.take(caps.max_uncompressed_bytes.saturating_sub(uncompressed_total) + 1);
+        let mut limited = file.take(
+            caps.max_uncompressed_bytes
+                .saturating_sub(uncompressed_total)
+                + 1,
+        );
         limited
             .read_to_end(&mut buf)
             .map_err(|e| format!("read zip entry {name}: {e}"))?;

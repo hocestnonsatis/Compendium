@@ -175,9 +175,7 @@ pub fn filter_relevant(
 
     let original_tokens = estimate_tokens(input, config);
     let lines_total = input.lines().count();
-    let max_tokens = options
-        .max_tokens
-        .unwrap_or(config.default_max_tokens);
+    let max_tokens = options.max_tokens.unwrap_or(config.default_max_tokens);
 
     // Pre-clean with cheap deterministic filter before scoring / LLM.
     let cleaned = filter(

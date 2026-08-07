@@ -1,6 +1,6 @@
 {
   "name": "compendium-mcp-darwin-arm64",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "macOS arm64 native binary for compendium-mcp",
   "license": "MIT",
   "os": [

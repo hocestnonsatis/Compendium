@@ -145,10 +145,7 @@ pub fn filter(input: &str, options: &FilterOptions, config: &Config) -> FilterRe
 }
 
 fn compile_patterns(patterns: &[String]) -> Vec<Regex> {
-    patterns
-        .iter()
-        .filter_map(|p| Regex::new(p).ok())
-        .collect()
+    patterns.iter().filter_map(|p| Regex::new(p).ok()).collect()
 }
 
 fn ansi_regex() -> &'static Regex {

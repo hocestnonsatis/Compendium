@@ -1,6 +1,6 @@
 {
   "name": "compendium-mcp",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "MCP server that compresses, summarizes, and filters context to minimize LLM token usage",
   "license": "MIT",
   "keywords": [
@@ -38,11 +38,11 @@
     "prepare": "node npm/scripts/link-bins.js"
   },
   "optionalDependencies": {
-    "compendium-mcp-darwin-arm64": "0.1.3",
-    "compendium-mcp-darwin-x64": "0.1.3",
-    "compendium-mcp-linux-x64": "0.1.3",
-    "compendium-mcp-linux-arm64": "0.1.3",
-    "compendium-mcp-win32-x64": "0.1.3"
+    "compendium-mcp-darwin-arm64": "0.2.0",
+    "compendium-mcp-darwin-x64": "0.2.0",
+    "compendium-mcp-linux-x64": "0.2.0",
+    "compendium-mcp-linux-arm64": "0.2.0",
+    "compendium-mcp-win32-x64": "0.2.0"
   },
   "preferUnplugged": true
 }

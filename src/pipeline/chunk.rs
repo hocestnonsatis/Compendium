@@ -324,7 +324,10 @@ fn take_overlap_suffix(text: &str, budget: usize) -> String {
 }
 
 fn render_index(source: &str, hash: &str, chunks: &[Chunk]) -> String {
-    let mut out = format!("# refmap source={source} hash={hash} chunks={}\n", chunks.len());
+    let mut out = format!(
+        "# refmap source={source} hash={hash} chunks={}\n",
+        chunks.len()
+    );
     for c in chunks {
         out.push_str(&format!(
             "- {} [{}..{} · ~{} tok] {}\n",

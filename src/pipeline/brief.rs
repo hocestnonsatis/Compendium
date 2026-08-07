@@ -201,10 +201,7 @@ pub fn brief(
         ));
     }
 
-    let path_docs: Vec<String> = candidates
-        .iter()
-        .map(|p| rel_path_str(&root, p))
-        .collect();
+    let path_docs: Vec<String> = candidates.iter().map(|p| rel_path_str(&root, p)).collect();
     let path_refs: Vec<&str> = path_docs.iter().map(|s| s.as_str()).collect();
     let path_ranked = score_documents(&score_query, &path_refs);
 
@@ -251,10 +248,7 @@ pub fn brief(
                 raw_corpus_tokens =
                     raw_corpus_tokens.saturating_add(estimate_tokens(&read.content, config));
                 if read.truncated {
-                    caveats.push(format!(
-                        "{} truncated; windows around query matches",
-                        rel
-                    ));
+                    caveats.push(format!("{} truncated; windows around query matches", rel));
                 }
                 selected.push(SelectedFile {
                     abs: abs.clone(),
@@ -390,6 +384,7 @@ pub fn brief(
                 include_text: true,
                 min_score: None,
                 preview_chars: 120,
+                ..Default::default()
             },
             config,
         );
@@ -469,9 +464,8 @@ pub fn brief(
         ));
     }
     if !suggestions.iter().any(|a| a.id == "workspace-brief") && !task.is_empty() {
-        read_next_lines.push(
-            "- skill `brief` → `cmp://skill/action/brief` (or action=help id=brief)".into(),
-        );
+        read_next_lines
+            .push("- skill `brief` → `cmp://skill/action/brief` (or action=help id=brief)".into());
     }
     let read_next_block = if read_next_lines.is_empty() {
         "- (none)".into()
@@ -480,8 +474,13 @@ pub fn brief(
     };
 
     let heuristic_status = build_heuristic_status(task, &kept, &evidence);
-    let (status_block, backend, model, fallback_reason) =
-        synthesize_status(task, &sources_block, &evidence_block, &heuristic_status, config);
+    let (status_block, backend, model, fallback_reason) = synthesize_status(
+        task,
+        &sources_block,
+        &evidence_block,
+        &heuristic_status,
+        config,
+    );
 
     let caveats_block = if caveats.is_empty() {
         "- none".into()
@@ -555,7 +554,9 @@ fn synthesize_status(
     );
 
     match smart {
-        Ok(result) if result.backend == SmartBackend::LocalLlm && !result.summary.trim().is_empty() => {
+        Ok(result)
+            if result.backend == SmartBackend::LocalLlm && !result.summary.trim().is_empty() =>
+        {
             (
                 result.summary.trim().to_string(),
                 "local_llm".into(),
@@ -821,10 +822,7 @@ fn select_query_windows(text: &str, query: &str, budget: usize) -> Vec<String> {
         return Vec::new();
     }
 
-    let docs: Vec<&str> = spans
-        .iter()
-        .map(|(s, e)| &text[*s..*e])
-        .collect();
+    let docs: Vec<&str> = spans.iter().map(|(s, e)| &text[*s..*e]).collect();
     let ranked = score_documents(query, &docs);
     let mut picked: Vec<(usize, f64)> = ranked.into_iter().filter(|(_, s)| *s > 0.0).collect();
     if picked.is_empty() {
@@ -960,12 +958,8 @@ fn resolve_root(explicit: Option<&str>) -> Result<PathBuf, String> {
         None => env::current_dir().map_err(|e| format!("brief: cannot resolve cwd: {e}"))?,
     };
 
-    let canonical = fs::canonicalize(&raw).map_err(|e| {
-        format!(
-            "brief: cannot canonicalize root `{}`: {e}",
-            raw.display()
-        )
-    })?;
+    let canonical = fs::canonicalize(&raw)
+        .map_err(|e| format!("brief: cannot canonicalize root `{}`: {e}", raw.display()))?;
 
     if !canonical.is_dir() {
         return Err(format!(
@@ -977,9 +971,8 @@ fn resolve_root(explicit: Option<&str>) -> Result<PathBuf, String> {
     if let Ok(allow) = env::var("COMPENDIUM_BRIEF_ROOT") {
         let allow = allow.trim();
         if !allow.is_empty() {
-            let allow_canon = fs::canonicalize(allow).map_err(|e| {
-                format!("brief: COMPENDIUM_BRIEF_ROOT `{allow}` is invalid: {e}")
-            })?;
+            let allow_canon = fs::canonicalize(allow)
+                .map_err(|e| format!("brief: COMPENDIUM_BRIEF_ROOT `{allow}` is invalid: {e}"))?;
             if !path_under_or_eq(&canonical, &allow_canon) {
                 return Err(format!(
                     "brief: root `{}` is outside COMPENDIUM_BRIEF_ROOT `{}`",
@@ -1173,7 +1166,11 @@ mod tests {
             ),
         );
         write(&root, "ignored_secret.rs", "pub fn steal_tokens() {}\n");
-        write(&root, "noise/big.rs", "fn noise() { /* auth auth auth */ }\n");
+        write(
+            &root,
+            "noise/big.rs",
+            "fn noise() { /* auth auth auth */ }\n",
+        );
 
         let config = Config::default();
         let result = brief(
@@ -1254,7 +1251,10 @@ mod tests {
         .expect("brief ok");
 
         assert!(
-            result.sources.iter().any(|s| s.path.contains("big.rs") && s.truncated),
+            result
+                .sources
+                .iter()
+                .any(|s| s.path.contains("big.rs") && s.truncated),
             "expected truncated big.rs: {:?}",
             result.sources
         );
@@ -1279,12 +1279,16 @@ mod tests {
         write(
             &root,
             "ROADMAP.md",
-            "# Roadmap\nBaseline: 2PC test harness only. Auth not started.\n".repeat(20).as_str(),
+            "# Roadmap\nBaseline: 2PC test harness only. Auth not started.\n"
+                .repeat(20)
+                .as_str(),
         );
         write(
             &root,
             "src/auth.rs",
-            "pub fn login() { /* auth complete B5 DONE */ }\n".repeat(30).as_str(),
+            "pub fn login() { /* auth complete B5 DONE */ }\n"
+                .repeat(30)
+                .as_str(),
         );
         touch_mtime(&root.join("ROADMAP.md"), 60 * 24 * 3600); // ~60 days old
         touch_mtime(&root.join("src/auth.rs"), 3600); // 1 hour old
@@ -1387,8 +1391,8 @@ mod tests {
 
     #[test]
     fn brief_requires_query() {
-        let err = brief("", None, &BriefOptions::default(), &Config::default())
-            .expect_err("empty query");
+        let err =
+            brief("", None, &BriefOptions::default(), &Config::default()).expect_err("empty query");
         assert!(err.contains("query"));
     }
 

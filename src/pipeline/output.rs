@@ -143,10 +143,10 @@ fn detect_domain(input: &str, hint: &OutputDomain) -> OutputDomain {
     let sample: String = input.chars().take(4_000).collect();
     let lower = sample.to_ascii_lowercase();
 
-    if sample.trim_start().starts_with('{') || sample.trim_start().starts_with('[') {
-        if serde_json::from_str::<serde_json::Value>(sample.trim()).is_ok() {
-            return OutputDomain::Json;
-        }
+    if (sample.trim_start().starts_with('{') || sample.trim_start().starts_with('['))
+        && serde_json::from_str::<serde_json::Value>(sample.trim()).is_ok()
+    {
+        return OutputDomain::Json;
     }
     if lower.contains("compiling ") && (lower.contains("cargo") || lower.contains("finished `")) {
         return OutputDomain::Cargo;
@@ -201,13 +201,10 @@ fn domain_drop_patterns(domain: &OutputDomain) -> Vec<String> {
             r"(?i)^ {4,}Downloaded ".into(),
             r"(?i)^ {4,}Checking ".into(),
         ],
-        OutputDomain::Npm => vec![
-            r"(?i)^npm (warn|notice)".into(),
-            r"(?i)^deprecated ".into(),
-        ],
-        OutputDomain::Docker => vec![
-            r"(?i)^[a-f0-9]{12}: (Waiting|Downloading|Extracting|Pull complete)".into(),
-        ],
+        OutputDomain::Npm => vec![r"(?i)^npm (warn|notice)".into(), r"(?i)^deprecated ".into()],
+        OutputDomain::Docker => {
+            vec![r"(?i)^[a-f0-9]{12}: (Waiting|Downloading|Extracting|Pull complete)".into()]
+        }
         OutputDomain::Git => vec![r"(?i)^create mode ".into(), r"(?i)^delete mode ".into()],
         _ => Vec::new(),
     }
@@ -257,17 +254,16 @@ fn filter_cargo(input: &str) -> String {
             }
             continue;
         }
-        if t.starts_with("Downloading ") || t.starts_with("Downloaded ") || t.starts_with("Checking ")
+        if t.starts_with("Downloading ")
+            || t.starts_with("Downloaded ")
+            || t.starts_with("Checking ")
         {
             continue;
         }
         out.push(line.to_string());
     }
     if seen_compiling > 3 {
-        out.insert(
-            0,
-            format!("…[{seen_compiling} Compiling lines collapsed]"),
-        );
+        out.insert(0, format!("…[{seen_compiling} Compiling lines collapsed]"));
     }
     out.join("\n")
 }
@@ -310,7 +306,12 @@ fn filter_kubectl(input: &str) -> String {
             let parts: Vec<&str> = l.split_whitespace().collect();
             if parts.len() >= 3 && parts[0] != "NAME" {
                 // NAME READY STATUS …
-                format!("{} {} {}", parts[0], parts.get(1).unwrap_or(&""), parts.get(2).unwrap_or(&""))
+                format!(
+                    "{} {} {}",
+                    parts[0],
+                    parts.get(1).unwrap_or(&""),
+                    parts.get(2).unwrap_or(&"")
+                )
             } else {
                 l.to_string()
             }

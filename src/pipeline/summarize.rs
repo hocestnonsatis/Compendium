@@ -222,7 +222,8 @@ fn summarize_conversation(input: &str, options: &SummarizeOptions) -> Vec<Summar
 
 fn summarize_file_tree(input: &str, options: &SummarizeOptions) -> Vec<SummarySection> {
     let mut dirs: Vec<(usize, String)> = Vec::new();
-    let mut files_by_ext: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut files_by_ext: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
     let mut file_count = 0usize;
 
     for line in input.lines() {
@@ -235,7 +236,11 @@ fn summarize_file_tree(input: &str, options: &SummarizeOptions) -> Vec<SummarySe
         if cleaned.is_empty() {
             continue;
         }
-        let depth = line.chars().take_while(|c| c.is_whitespace() || "│|".contains(*c)).count() / 2;
+        let depth = line
+            .chars()
+            .take_while(|c| c.is_whitespace() || "│|".contains(*c))
+            .count()
+            / 2;
         if cleaned.ends_with('/') || !cleaned.contains('.') {
             dirs.push((depth, cleaned.trim_end_matches('/').to_string()));
         } else {
@@ -248,7 +253,10 @@ fn summarize_file_tree(input: &str, options: &SummarizeOptions) -> Vec<SummarySe
         }
     }
 
-    let mut bullets = vec![format!("{file_count} files across {} directories", dirs.len())];
+    let mut bullets = vec![format!(
+        "{file_count} files across {} directories",
+        dirs.len()
+    )];
     for (ext, n) in files_by_ext.iter().take(options.max_bullets_per_section) {
         bullets.push(format!(".{ext}: {n}"));
     }
@@ -338,7 +346,11 @@ fn summarize_outline(input: &str, options: &SummarizeOptions) -> Vec<SummarySect
             .map(str::trim)
             .filter(|p| !p.is_empty())
             .collect();
-        for (i, para) in paras.iter().take(options.max_bullets_per_section).enumerate() {
+        for (i, para) in paras
+            .iter()
+            .take(options.max_bullets_per_section)
+            .enumerate()
+        {
             sections.push(SummarySection {
                 title: format!("Section {}", i + 1),
                 level: 1,
@@ -390,7 +402,7 @@ fn nest_sections(flat: Vec<SummarySection>) -> Vec<SummarySection> {
 fn heading_level(line: &str) -> Option<usize> {
     if line.starts_with('#') {
         let n = line.chars().take_while(|c| *c == '#').count();
-        if n >= 1 && n <= 6 {
+        if (1..=6).contains(&n) {
             return Some(n);
         }
     }
@@ -441,7 +453,11 @@ fn render_sections(sections: &[SummarySection], max_depth: usize) -> String {
             return;
         }
         let indent = "  ".repeat(sec.level.saturating_sub(1));
-        out.push_str(&format!("{indent}{} {}\n", "#".repeat(sec.level.min(6)), sec.title));
+        out.push_str(&format!(
+            "{indent}{} {}\n",
+            "#".repeat(sec.level.min(6)),
+            sec.title
+        ));
         for b in &sec.bullets {
             out.push_str(&format!("{indent}- {b}\n"));
         }
@@ -482,10 +498,14 @@ Install dependencies and configure the environment carefully.
 ## Usage
 Run the binary with stdio transport enabled always.
 "#;
-        let result = summarize(input, &SummarizeOptions {
-            force: true,
-            ..Default::default()
-        }, &Config::default());
+        let result = summarize(
+            input,
+            &SummarizeOptions {
+                force: true,
+                ..Default::default()
+            },
+            &Config::default(),
+        );
         assert!(result.summary.contains("Intro"));
         assert!(!result.sections.is_empty());
         assert!(result.metrics.result_tokens > 0);
@@ -494,7 +514,8 @@ Run the binary with stdio transport enabled always.
 
     #[test]
     fn summarizes_conversation() {
-        let input = "user: How do I build this?\nassistant: Run cargo build --release.\nuser: Thanks!";
+        let input =
+            "user: How do I build this?\nassistant: Run cargo build --release.\nuser: Thanks!";
         let result = summarize(
             input,
             &SummarizeOptions {

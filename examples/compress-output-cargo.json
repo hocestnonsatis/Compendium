@@ -1,0 +1,10 @@
+{
+  "action": "compress_output",
+  "text": "   Compiling foo v0.1.0\n   Compiling bar v0.2.0\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.34s\n     Running unittests src/lib.rs\n\nrunning 3 tests\ntest a::ok ... ok\ntest b::fail ... FAILED\n\nfailures:\n\n---- b::fail stdout ----\nthread 'b::fail' panicked at src/b.rs:10:5:\nassertion failed\n\ntest result: FAILED. 2 passed; 1 failed; 0 ignored\n",
+  "output": {
+    "domain": "cargo",
+    "keep_head_tail": true,
+    "head_lines": 20,
+    "tail_lines": 40
+  }
+}

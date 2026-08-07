@@ -16,8 +16,14 @@ const EMBEDDED: &[(&str, &str)] = &[
     ("noisy-logs", include_str!("../../playbooks/noisy-logs.md")),
     ("cargo-fail", include_str!("../../playbooks/cargo-fail.md")),
     ("e2e-triage", include_str!("../../playbooks/e2e-triage.md")),
-    ("long-chat-afm", include_str!("../../playbooks/long-chat-afm.md")),
-    ("workspace-brief", include_str!("../../playbooks/workspace-brief.md")),
+    (
+        "long-chat-afm",
+        include_str!("../../playbooks/long-chat-afm.md"),
+    ),
+    (
+        "workspace-brief",
+        include_str!("../../playbooks/workspace-brief.md"),
+    ),
 ];
 
 /// Short playbook advertisement.
@@ -197,9 +203,7 @@ fn parse_playbook(raw: &str, source: &str, fallback_id: Option<&str>) -> Option<
         .or_else(|| fallback_id.map(|s| s.to_string()))
         .filter(|s| !s.is_empty())?;
     let name = meta.name.unwrap_or_else(|| id.clone());
-    let description = meta
-        .description
-        .unwrap_or_else(|| format!("Playbook {id}"));
+    let description = meta.description.unwrap_or_else(|| format!("Playbook {id}"));
     let tags = meta.tags;
     let uri = format!("cmp://skill/playbook/{id}");
     Some(Playbook {
@@ -240,7 +244,7 @@ fn parse_simple_frontmatter(yaml: &str) -> Frontmatter {
             "description" => fm.description = Some(val),
             "tags" => {
                 fm.tags = val
-                    .split(|c| c == ',' || c == ' ')
+                    .split([',', ' '])
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .map(|s| s.to_string())

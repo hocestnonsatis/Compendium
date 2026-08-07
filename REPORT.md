@@ -1,5 +1,7 @@
 Architectural Blueprint for Compendium: High-Performance Local Context Optimization via MCP
 
+> **Status (v0.1.3):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy.
+
 1. Executive Summary: The Context Bloat Crisis and Local Mitigation Strategies
 
 In production Model Context Protocol (MCP) environments, a systemic architectural bottleneck has emerged: "metadata token bloat." When an agent registers enterprise-grade MCP servers, the protocol mandates the upfront exposure of complete structural definitions, including nested JSON schemas and extensive parameter lists. Research indicates that the official Atlassian MCP server consumes approximately 10,000 tokens per request solely to advertise its interfaces, while the GitHub implementation, exposing 94 tools, imposes an immediate overhead of 17,600 tokens before a user prompt is processed.
@@ -92,70 +94,66 @@ Identified Security Risks
 2. isVisible Parameter Manipulation: Instructions executed silently without appearing in the user's chat UI.
 3. PII Leakage: Persistence of sensitive identifiers in local caches or exfiltration via unauthorized outbound traffic.
 
-Compendium Security Mandates
+Compendium Security Mandates (as implemented / planned)
 
-Compendium shall implement "guardrail-hooks" designed to mitigate CVE-2025-59536 (insecure settings modification) and CVE-2026-21852 (base URL overrides).
+* **Loopback allowlist for LLM:** `COMPENDIUM_LOCAL_LLM_URL` must resolve to loopback (`127.0.0.1` / `::1`). This is intentional — local SLMs run on loopback.
+* **SSRF rejection:** Non-loopback hosts (including other private ranges such as `10.0.0.0/8` and `192.168.0.0/16`) are rejected. Do **not** block `127.0.0.0/8`; that would break BYO Ollama/llama.cpp server.
+* **Sanitize hooks:** Secrets, IPI phrases, and cross-app poison params (`systemPrompt`, `isVisible`, …) via `action=sanitize` / `sanitize_input`.
+* **Audit trails:** Opt-in forensic logging is **Next** (not yet shipped). Session `stats` covers token/latency telemetry only.
 
-* Loopback Enforcement: Mandate LLM URLs to 127.0.0.1.
-* IP Blocking: The architecture shall block Private IP ranges including 127.0.0.0/8, 10.0.0.0/8, and 192.168.0.0/16 to prevent SSRF.
-* Audit Trails: Implement a secure JSON-RPC bridge that logs every tool request and response for forensic analysis.
+7. Roadmap status (aligned with v0.1.3+)
 
-7. Compendium Development Roadmap: Prioritized 2-3 Sprint Plan
+### Shipped
 
-The following features represent the critical path for the production-ready Rust MCP server.
+| Item | Notes |
+|------|--------|
+| Single gateway + action enum | `src/server.rs` — one tool `compendium` |
+| Signal-to-call (<1000 chars bypass) | `pipeline/signal.rs`; `force` overrides |
+| AFM `prune_history` | `strategy=afm` |
+| Query-aware filter / BM25 rerank / brief | Lexical BM25; not cross-encoder |
+| `stats` telemetry | Session counters + latency/bypass/backend |
+| Sanitize middleware | Secrets / IPI / poison params |
+| Progressive disclosure | `catalog`/`help`, `cmp://skill/…`, playbooks |
+| npm binary distribution | optionalDeps + GitHub Releases (Compendium binary, not llama weights) |
+| Brand icons (SEP-973) | data URIs; host rendering client-dependent |
 
-1. rerank_chunks
-  * The Problem: Initial hybrid retrieval includes significant semantic noise.
-  * The Approach: SLM-based (Cross-Encoder scoring).
-  * Dependency: HTTP/Ollama required? No (Native Rust).
-  * Estimated Difficulty: Medium.
-2. smart_prune_history
-  * The Problem: Quadratic token growth in conversation logs.
-  * The Approach: Deterministic (Adaptive Focus Memory (AFM) Tiered Fidelity).
-  * Dependency: HTTP/Ollama required? No.
-  * Estimated Difficulty: Low.
-3. query-aware_filter
-  * The Problem: Standard compressors often drop specific metadata required for factual lookups.
-  * The Approach: Deterministic (BM25 lexical scoring).
-  * Dependency: HTTP/Ollama required? No.
-  * Estimated Difficulty: Medium.
-4. stats/telemetry
-  * The Problem: No visibility into BPE token efficiency.
-  * The Approach: Deterministic (QuickTok BPE trie match).
-  * Dependency: HTTP/Ollama required? No.
-  * Estimated Difficulty: Low.
-5. sanitization_middleware
-  * The Problem: Vulnerability to IPI payloads in tool outputs.
-  * The Approach: Deterministic (Regex/Secret pattern matching).
-  * Dependency: HTTP/Ollama required? No.
-  * Estimated Difficulty: Medium.
-6. binary_weight_manager
-  * The Problem: Complex ML installation failures on client hardware.
-  * The Approach: Deterministic (GitHub Artifact Pre-linking).
-  * Dependency: HTTP/Ollama required? No.
-  * Estimated Difficulty: High.
-7. hybrid_search_bridge
-  * The Problem: Semantic search misses exact technical identifiers/serial keys.
-  * The Approach: Deterministic (Inverted BM25 index with 128x speedup).
-  * Dependency: HTTP/Ollama required? No.
-  * Estimated Difficulty: Medium.
+### Next (prioritized)
+
+1. Cross-encoder SLM rerank on top-N (optional polish).
+2. Platform expansions on demand (musl / win32-arm64).
+
+### Recently completed (toward 0.2–0.3)
+
+- PR CI (`ci.yml`), `examples/`, CHANGELOG, architecture doc, REPORT hygiene.
+- Persistent session cache (`COMPENDIUM_CACHE_DIR` / `_MAX_BYTES`), TTL + stats counters.
+- Hybrid BM25 + loopback embeddings for `rerank` / `brief`; `llm_status`; opt-in `COMPENDIUM_AUDIT_PATH`.
+
+### Deferred
+
+| Item | Why |
+|------|-----|
+| Embedded llama.cpp / Candle | Binary size + maintenance; keep BYO OpenAI-compatible server |
+| TurboQuant / Hadamard / NPU path | Research; not product path |
+| Foreign-MCP schema proxy (`get_tool_schema` / `invoke_tool`) | Different product; Compendium compresses *context*, not third-party tool schemas |
+| Cloud embeddings | Violates local-first |
 
 8. Implementation Checklist: Do's and Don'ts
 
 DO
 
-* Prioritize Rust-native speed: Use llama-cpp-sys-4 for direct memory linking and NPU-acceleration on Ryzen AI hardware.
-* Enforce local-first privacy: Mandate all traffic to the loopback interface.
-* Implement Hybrid Retrieval: Combine BM25 for technical identifiers with semantic vectors.
-* Apply Hadamard rotation for TurboQuant: Maintain accuracy during aggressive 2-bit V-cache compression.
-* Use Deterministic Compression: Ensure byte-identical outputs to preserve downstream prefix caching.
+* Keep heuristic pipelines fast and deterministic (prefix-cache friendly).
+* Enforce local-first privacy: LLM and future embedding URLs on loopback only.
+* Prefer hybrid BM25 + local vectors when improving retrieval (Next).
+* Ship npm/GitHub prebuilt **Compendium** binaries; document BYO SLM separately.
+* Use deterministic compressors by default; smart/SLM paths must report `backend`.
 
 DON'T
 
-* Depend on cloud-only embeddings: This violates the local-first security model and introduces network latency.
-* Use Candle for production: Avoid due to binary size issues and lack of Flash Attention parity.
-* Allow Non-deterministic Summarizers: These break byte-identity and destroy prefix cache reuse.
-* Ignore Multi-instance unified memory contention: Avoid running independent inference processes that starve the memory controller on Apple Silicon.
+* Depend on cloud-only embeddings or remote LLM bases.
+* Embed Candle/llama.cpp in the default binary without a separate major feature + asset strategy.
+* Build a foreign-tool schema proxy under this crate’s scope.
+* Allow non-loopback SSRF via “helpful” URL rewriting.
+* Block loopback IPs in the SSRF guard (breaks local SLM).
 
 9. Reference Bibliography
 

@@ -17,7 +17,8 @@ Unknown action? Call `action: "catalog"` (or MCP `resources/list` on `cmp://skil
 | git/cargo/npm/docker/kubectl stdout | `action: "compress_output"` + `text` |
 | Untrusted text / possible secrets or IPI | `action: "sanitize"` + `text` (or `sanitize_input: true`) |
 | Keep only lines about a question | `action: "filter_relevant"` or `filter` + `query` (BM25) |
-| Rank chunks for a question | `action: "rerank"` + `query` + `items` / chunk `map` |
+| Rank chunks for a question | `action: "rerank"` + `query` + `items` / chunk `map` (hybrid if local embeddings up) |
+| Why heuristic / LLM down? | `action: "llm_status"` (`force: true` for chat probe) |
 | New sub-task / fresh agent turn | `action: "brief"` + `query` (+ optional `brief.root`); use returned structured briefing (Status/Evidence/Caveats/Sources/Read next) or `cache_key` as starter context |
 | Dense rewrite of code/logs/JSON | `action: "compress"` + `text` (skip if &lt;~1000 chars unless `force`) |
 | Long chat / transcript | `action: "prune_history"` (`strategy: "afm"` preferred) or `summarize` / `summarize_smart` |
@@ -32,7 +33,7 @@ Unknown action? Call `action: "catalog"` (or MCP `resources/list` on `cmp://skil
 
 - If a single tool result is likely >~400 tokens of noise, run `filter` or `compress_output` first.
 - Prefer `filter_relevant` when you already know the question the log must answer.
-- Prefer `cache_store` over re-pasting the same large blob across turns.
+- Prefer `cache_store` over re-pasting the same large blob across turns (optional `COMPENDIUM_CACHE_DIR` for disk persistence).
 - Prefer `chunk` index text over the full corpus; `resolve` only the ids you need.
 - Prefer `catalog`/`help` (or resources) over guessing action fields; default `help` is compressed — use `force: true` for examples.
 - Do not invent other tool names (`compendium_filter`, etc.) — there is only `compendium`.

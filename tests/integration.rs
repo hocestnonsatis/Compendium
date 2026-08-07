@@ -1,15 +1,15 @@
 //! Integration-style tests for the public pipeline API and MCP tool wiring.
 
-use compendium::{
-    chunk_with_refs, compress, compress_output, count_tokens_detailed, filter, filter_relevant,
-    parse_history_input, prune_history, summarize, summarize_smart, ChunkOptions, CompressOptions,
-    Config, FilterOptions, PruneOptions, SmartBackend, SmartOptions, SummarizeOptions,
-};
 use compendium::pipeline::compress::ContentType;
 use compendium::pipeline::output::CompressOutputOptions;
 use compendium::pipeline::prune::PruneStrategy;
 use compendium::pipeline::summarize::SummarizeMode;
 use compendium::CompendiumServer;
+use compendium::{
+    chunk_with_refs, compress, compress_output, count_tokens_detailed, filter, filter_relevant,
+    parse_history_input, prune_history, summarize, summarize_smart, ChunkOptions, CompressOptions,
+    Config, FilterOptions, PruneOptions, SmartBackend, SmartOptions, SummarizeOptions,
+};
 
 #[test]
 fn end_to_end_pipeline_reduces_tokens() {

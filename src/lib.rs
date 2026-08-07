@@ -14,15 +14,19 @@ pub mod server;
 
 pub use config::{
     Config, LocalLlmConfig, DEFAULT_ARCHIVE_MAX_BYTES, DEFAULT_ARCHIVE_MAX_FILES,
-    DEFAULT_ARCHIVE_MAX_UNCOMPRESSED, DEFAULT_SIGNAL_MIN_CHARS,
+    DEFAULT_ARCHIVE_MAX_UNCOMPRESSED, DEFAULT_CACHE_MAX_BYTES, DEFAULT_SIGNAL_MIN_CHARS,
 };
 pub use pipeline::{
     brief::{brief, BriefOptions, BriefResult, BriefSource},
-    cache::{CacheGetResult, CacheInvalidateResult, CacheStoreOptions, CacheStoreResult},
+    cache::{
+        CacheCounters, CacheGetResult, CacheInvalidateResult, CacheStore, CacheStoreOptions,
+        CacheStoreResult,
+    },
     catalog::{action_ads, catalog_json, help_for, ActionAd, ActionHelp},
     chunk::{chunk_with_refs, resolve_chunk, resolve_ref, ChunkMap, ChunkOptions, ResolveResult},
     compress::{compress, CompressOptions, CompressResult},
     filter::{filter, FilterOptions, FilterResult},
+    local_llm::{llm_status, LlmStatusResult},
     output::{compress_output, CompressOutputOptions, CompressOutputResult},
     pack::{
         pack_items, parse_pack_text, unpack_bytes, PackItem, PackOptions, PackResult, UnpackResult,

@@ -1,0 +1,17 @@
+{
+  "action": "prune_history",
+  "messages": [
+    { "role": "user", "content": "List the crate modules under src/pipeline." },
+    { "role": "assistant", "content": "filter, compress, summarize, smart, chunk, cache, …" },
+    { "role": "user", "content": "ok" },
+    { "role": "assistant", "content": "Sure." },
+    { "role": "user", "content": "Now explain how prune_history AFM tiers work." },
+    { "role": "assistant", "content": "Critical keeps the last N turns full; Thematic compresses a middle band; Distant is a placeholder plus cache ref." },
+    { "role": "user", "content": "Apply AFM with keep_last_n=2 on this thread." }
+  ],
+  "prune": {
+    "strategy": "afm",
+    "keep_last_n": 2,
+    "thematic_n": 4
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "action": "brief",
+  "query": "how does the MCP gateway dispatch actions?",
+  "brief": {
+    "max_files": 30,
+    "top_k_chunks": 10,
+    "max_brief_tokens": 2000
+  }
+}

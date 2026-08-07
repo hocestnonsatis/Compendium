@@ -1,0 +1,10 @@
+{
+  "action": "filter",
+  "text": "\u001b[31mERROR\u001b[0m boom\n\n\nINFO ok\nDEBUG noise\nWARN check this",
+  "filter": {
+    "strip_ansi": true,
+    "collapse_whitespace": true,
+    "densify_json": false,
+    "keep_patterns": ["ERROR|WARN|INFO"]
+  }
+}

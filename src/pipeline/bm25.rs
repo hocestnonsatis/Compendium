@@ -59,13 +59,28 @@ pub fn is_technical_token(token: &str) -> bool {
     // HTTP / process status
     if matches!(
         token,
-        "200" | "201" | "204" | "301" | "302" | "400" | "401" | "403" | "404" | "409" | "422"
-            | "429" | "500" | "502" | "503" | "504"
+        "200"
+            | "201"
+            | "204"
+            | "301"
+            | "302"
+            | "400"
+            | "401"
+            | "403"
+            | "404"
+            | "409"
+            | "422"
+            | "429"
+            | "500"
+            | "502"
+            | "503"
+            | "504"
     ) {
         return true;
     }
     // Semver-ish: 1.2.3 / v1.2.3-beta
-    if SEMVER.get_or_init(|| Regex::new(r"^v?\d+\.\d+(\.\d+)?([-+][a-z0-9.]+)?").expect("re"))
+    if SEMVER
+        .get_or_init(|| Regex::new(r"^v?\d+\.\d+(\.\d+)?([-+][a-z0-9.]+)?").expect("re"))
         .is_match(token)
     {
         return true;
@@ -94,8 +109,18 @@ pub fn is_technical_token(token: &str) -> bool {
     // ERROR/WARN/FAIL markers treated as technical signal words
     matches!(
         token,
-        "error" | "err" | "warn" | "warning" | "fail" | "failed" | "failure" | "panic" | "fatal"
-            | "exception" | "traceback" | "errno"
+        "error"
+            | "err"
+            | "warn"
+            | "warning"
+            | "fail"
+            | "failed"
+            | "failure"
+            | "panic"
+            | "fatal"
+            | "exception"
+            | "traceback"
+            | "errno"
     )
 }
 
@@ -138,8 +163,11 @@ pub fn score_documents(query: &str, docs: &[&str]) -> Vec<(usize, f64)> {
                 .iter()
                 .filter(|t| is_technical_token(t))
                 .filter(|t| {
-                    query_tokens.iter().any(|q| q == *t || t.contains(q.as_str()) || q.contains(t.as_str()))
-                        || is_technical_token(t) && query_tokens.iter().any(|q| is_technical_token(q))
+                    query_tokens
+                        .iter()
+                        .any(|q| q == *t || t.contains(q.as_str()) || q.contains(t.as_str()))
+                        || is_technical_token(t)
+                            && query_tokens.iter().any(|q| is_technical_token(q))
                 })
                 .count();
             // Always nudge lines that carry tech tokens when the query also has tech tokens,
@@ -228,20 +256,13 @@ pub fn filter_lines_bm25(
     max_tokens: usize,
     estimate_tokens: impl Fn(&str) -> usize,
 ) -> String {
-    let lines: Vec<&str> = input
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .collect();
+    let lines: Vec<&str> = input.lines().filter(|l| !l.trim().is_empty()).collect();
     if lines.is_empty() {
         return String::new();
     }
 
     let scored = score_documents(query, &lines);
-    let positive: Vec<(usize, f64)> = scored
-        .iter()
-        .copied()
-        .filter(|(_, s)| *s > 0.0)
-        .collect();
+    let positive: Vec<(usize, f64)> = scored.iter().copied().filter(|(_, s)| *s > 0.0).collect();
 
     let chosen: Vec<(usize, f64)> = if positive.is_empty() {
         scored.into_iter().take(8).collect()
@@ -260,7 +281,7 @@ pub fn filter_lines_bm25(
     if !q_tech.is_empty() {
         for (idx, line) in lines.iter().enumerate() {
             let lt = tokenize(line);
-            if lt.iter().any(|t| q_tech.iter().any(|qt| *qt == t)) && !indices.contains(&idx) {
+            if lt.iter().any(|t| q_tech.contains(&t)) && !indices.contains(&idx) {
                 indices.push(idx);
             }
         }

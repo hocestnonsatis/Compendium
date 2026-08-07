@@ -24,18 +24,19 @@ use crate::pipeline::{
     brief::{brief, BriefOptions},
     cache::{CacheStore, CacheStoreOptions},
     catalog::{
-        catalog_json, catalog_markdown, help_for, help_markdown, parse_action_uri, action_ads,
+        action_ads, catalog_json, catalog_markdown, help_for, help_markdown, parse_action_uri,
     },
     chunk::{chunk_with_refs, resolve_ref, ChunkMap, ChunkOptions},
     compress::{compress, CompressOptions},
     filter::{filter, FilterOptions},
+    local_llm::llm_status,
     output::{compress_output, CompressOutputOptions},
     pack::{
         decode_archive_bytes, pack_items, parse_pack_text, unpack_bytes, PackItem, PackOptions,
     },
     playbook::{
-        get_playbook, list_playbooks, parse_playbook_uri, playbook_ads_json, playbook_catalog_lines,
-        skill_index_json,
+        get_playbook, list_playbooks, parse_playbook_uri, playbook_ads_json,
+        playbook_catalog_lines, skill_index_json,
     },
     prune::{parse_history_input, prune_history, HistoryMessage, PruneOptions},
     rerank::{parse_rerank_items, rerank, RerankItem, RerankOptions},
@@ -48,7 +49,6 @@ use crate::pipeline::{
 };
 
 /// Shared mutable session state (cache + savings counters).
-#[derive(Default)]
 struct ServerState {
     cache: CacheStore,
     stats: SessionStats,
@@ -63,9 +63,13 @@ pub struct CompendiumServer {
 
 impl CompendiumServer {
     pub fn new(config: Config) -> Self {
+        let state = ServerState {
+            cache: CacheStore::from_config(&config),
+            stats: SessionStats::default(),
+        };
         Self {
             config,
-            state: Arc::new(Mutex::new(ServerState::default())),
+            state: Arc::new(Mutex::new(state)),
         }
     }
 
@@ -84,9 +88,7 @@ impl CompendiumServer {
 
     fn record(&self, action: &str, metrics: &TokenMetrics) {
         if let Ok(mut state) = self.state.lock() {
-            state
-                .stats
-                .record(&format!("compendium:{action}"), metrics);
+            state.stats.record(&format!("compendium:{action}"), metrics);
         }
     }
 
@@ -168,6 +170,7 @@ impl CompendiumServer {
             CompendiumAction::Playbook => self.act_playbook(params),
             CompendiumAction::Pack => self.act_pack(params),
             CompendiumAction::Unpack => self.act_unpack(params),
+            CompendiumAction::LlmStatus => self.act_llm_status(params),
         };
 
         let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
@@ -176,6 +179,21 @@ impl CompendiumServer {
             Ok(result) => {
                 self.attach_telemetry(action_name, latency_ms, Some(&result));
                 self.note_lazy_telemetry(action, discovery_id.as_deref(), force);
+                let backend = result.get("backend").and_then(|v| v.as_str());
+                let metrics = result.get("metrics").and_then(|m| {
+                    let o = m.get("original_tokens")?.as_u64()? as usize;
+                    let r = m.get("result_tokens")?.as_u64()? as usize;
+                    Some(TokenMetrics::new(o, r))
+                });
+                crate::pipeline::audit::record_action(
+                    &self.config,
+                    action_name,
+                    true,
+                    None,
+                    metrics.as_ref(),
+                    Some(latency_ms),
+                    backend,
+                );
                 GatewayEnvelope {
                     ok: true,
                     action: action_name.into(),
@@ -185,6 +203,15 @@ impl CompendiumServer {
             }
             Err(error) => {
                 self.attach_telemetry(action_name, latency_ms, None);
+                crate::pipeline::audit::record_action(
+                    &self.config,
+                    action_name,
+                    false,
+                    Some(&error),
+                    None,
+                    Some(latency_ms),
+                    None,
+                );
                 GatewayEnvelope {
                     ok: false,
                     action: action_name.into(),
@@ -207,8 +234,8 @@ impl CompendiumServer {
                     state.stats.note_lazy_ad(None);
                 }
                 CompendiumAction::Help => {
-                    let id = discovery_id
-                        .map(|s| s.strip_prefix("cmp://skill/action/").unwrap_or(s));
+                    let id =
+                        discovery_id.map(|s| s.strip_prefix("cmp://skill/action/").unwrap_or(s));
                     if force {
                         state.stats.note_lazy_full(id);
                     } else {
@@ -216,14 +243,15 @@ impl CompendiumServer {
                     }
                 }
                 CompendiumAction::Playbook => {
-                    let id = discovery_id
-                        .map(|s| s.strip_prefix("cmp://skill/playbook/").unwrap_or(s));
+                    let id =
+                        discovery_id.map(|s| s.strip_prefix("cmp://skill/playbook/").unwrap_or(s));
                     state.stats.note_lazy_full(id);
                 }
                 CompendiumAction::Stats
                 | CompendiumAction::CountTokens
                 | CompendiumAction::CacheGet
-                | CompendiumAction::CacheInvalidate => {}
+                | CompendiumAction::CacheInvalidate
+                | CompendiumAction::LlmStatus => {}
                 other => {
                     state.stats.note_action_follow(other.as_str());
                 }
@@ -266,7 +294,7 @@ impl CompendiumServer {
         }
         let result = filter(&text, &options, &self.config);
         self.record("filter", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_compress(&self, params: GatewayParams) -> Result<Value, String> {
@@ -274,7 +302,7 @@ impl CompendiumServer {
         let options = params.compress.unwrap_or_default();
         let result = compress(&text, &options, &self.config);
         self.record("compress", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_compress_output(&self, params: GatewayParams) -> Result<Value, String> {
@@ -282,7 +310,7 @@ impl CompendiumServer {
         let options = params.output.unwrap_or_default();
         let result = compress_output(&text, &options, &self.config);
         self.record("compress_output", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_summarize(&self, params: GatewayParams) -> Result<Value, String> {
@@ -290,7 +318,7 @@ impl CompendiumServer {
         let options = params.summarize.unwrap_or_default();
         let result = summarize(&text, &options, &self.config);
         self.record("summarize", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_summarize_smart(&self, params: GatewayParams) -> Result<Value, String> {
@@ -299,7 +327,7 @@ impl CompendiumServer {
         let summarize_opts = params.summarize.unwrap_or_default();
         let result = summarize_smart(&text, &smart, &summarize_opts, &self.config)?;
         self.record("summarize_smart", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_filter_relevant(&self, params: GatewayParams) -> Result<Value, String> {
@@ -317,7 +345,7 @@ impl CompendiumServer {
             })?;
         let result = filter_relevant(&text, &query, &smart, &self.config)?;
         self.record("filter_relevant", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_sanitize(&self, params: GatewayParams) -> Result<Value, String> {
@@ -325,7 +353,7 @@ impl CompendiumServer {
         let options = params.sanitize.unwrap_or_default();
         let result = sanitize(&text, &options, &self.config);
         self.record("sanitize", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_prune(&self, params: GatewayParams) -> Result<Value, String> {
@@ -349,7 +377,7 @@ impl CompendiumServer {
         }
 
         self.record("prune_history", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_rerank(&self, params: GatewayParams) -> Result<Value, String> {
@@ -383,10 +411,7 @@ impl CompendiumServer {
                 if text.is_empty() {
                     continue;
                 }
-                let id = c
-                    .get("id")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
+                let id = c.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
                 out.push(RerankItem { id, text });
             }
             if out.is_empty() {
@@ -400,7 +425,7 @@ impl CompendiumServer {
         let options = params.rerank.unwrap_or_default();
         let result = rerank(query, &items, &options, &self.config);
         self.record("rerank", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_chunk(&self, params: GatewayParams) -> Result<Value, String> {
@@ -409,7 +434,7 @@ impl CompendiumServer {
         let result = chunk_with_refs(&text, &options, &self.config);
         self.cache_chunks(&result);
         self.record("chunk", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_resolve(&self, params: GatewayParams) -> Result<Value, String> {
@@ -465,20 +490,28 @@ impl CompendiumServer {
             &self.config,
         );
         self.record_call("resolve");
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_count_tokens(&self, params: GatewayParams) -> Result<Value, String> {
         let text = Self::require_text(&params)?;
         let result = count_tokens_detailed(&text, &self.config);
         self.record_call("count_tokens");
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_stats(&self, params: GatewayParams) -> Result<Value, String> {
         let reset = params.reset.unwrap_or(false);
         let result = if let Ok(mut state) = self.state.lock() {
-            let snap = state.stats.snapshot();
+            let mut snap = state.stats.snapshot();
+            let cache = state.cache.counters();
+            snap.cache_hits = cache.hits;
+            snap.cache_misses = cache.misses;
+            snap.cache_disk_loads = cache.disk_loads;
+            snap.cache_evictions = cache.evictions;
+            snap.cache_entries = cache.entries;
+            snap.cache_bytes = cache.bytes;
+            snap.cache_dir = cache.disk_dir;
             if reset {
                 state.stats.clear();
             }
@@ -486,7 +519,7 @@ impl CompendiumServer {
         } else {
             SessionStats::default()
         };
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_cache_store(&self, params: GatewayParams) -> Result<Value, String> {
@@ -498,7 +531,7 @@ impl CompendiumServer {
             CacheStore::default().store(&text, &options, &self.config)
         };
         self.record("cache_store", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_cache_get(&self, params: GatewayParams) -> Result<Value, String> {
@@ -520,7 +553,7 @@ impl CompendiumServer {
             }));
         };
         self.record_call("cache_get");
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_cache_invalidate(&self, params: GatewayParams) -> Result<Value, String> {
@@ -530,7 +563,7 @@ impl CompendiumServer {
             return Ok(json!({ "removed": 0, "keys": [] }));
         };
         self.record_call("cache_invalidate");
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_brief(&self, params: GatewayParams) -> Result<Value, String> {
@@ -572,7 +605,7 @@ impl CompendiumServer {
         }
 
         self.record("brief", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_catalog(&self, _params: GatewayParams) -> Result<Value, String> {
@@ -624,7 +657,7 @@ impl CompendiumServer {
         let id = id.strip_prefix("cmp://skill/playbook/").unwrap_or(id);
         let pb = get_playbook(id, &self.config)?;
         self.record_call("playbook");
-        Ok(serde_json::to_value(pb).map_err(|e| e.to_string())?)
+        serde_json::to_value(pb).map_err(|e| e.to_string())
     }
 
     fn act_pack(&self, params: GatewayParams) -> Result<Value, String> {
@@ -665,7 +698,7 @@ impl CompendiumServer {
         self.record("pack", &result.metrics);
         // Drop raw bytes from JSON payload.
         result.zip_bytes.clear();
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     fn act_unpack(&self, params: GatewayParams) -> Result<Value, String> {
@@ -693,7 +726,15 @@ impl CompendiumServer {
         let result = unpack_bytes(&zip_bytes, &options, &self.config)?;
         self.cache_chunks(&result.chunks);
         self.record("unpack", &result.metrics);
-        Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        serde_json::to_value(result).map_err(|e| e.to_string())
+    }
+
+    fn act_llm_status(&self, params: GatewayParams) -> Result<Value, String> {
+        // `force: true` also probes a tiny chat completion (slower / loads model).
+        let check_chat = params.force.unwrap_or(false);
+        let result = llm_status(&self.config.local_llm, check_chat);
+        self.record_call("llm_status");
+        serde_json::to_value(result).map_err(|e| e.to_string())
     }
 
     /// Resolve MCP resource URI to (mime, body, content_hash).
@@ -811,6 +852,8 @@ pub enum CompendiumAction {
     Pack,
     /// Unpack zip with size caps into chunks (never runs scripts).
     Unpack,
+    /// Probe configured local LLM (loopback) reachability / models.
+    LlmStatus,
 }
 
 impl CompendiumAction {
@@ -839,6 +882,7 @@ impl CompendiumAction {
             Self::Playbook => "playbook",
             Self::Pack => "pack",
             Self::Unpack => "unpack",
+            Self::LlmStatus => "llm_status",
         }
     }
 }
@@ -926,10 +970,7 @@ impl CompendiumServer {
         description = "Token-optimization gateway. Set `action` (filter, compress, brief, catalog, help, playbooks, pack/unpack, …). Prefer action=catalog or MCP resources (cmp://skill/…) for details; action=help+id for one action. Pass text/query/messages/key/id/items as required.",
         icons = mcp_icons()
     )]
-    fn compendium(
-        &self,
-        Parameters(params): Parameters<GatewayParams>,
-    ) -> Json<GatewayEnvelope> {
+    fn compendium(&self, Parameters(params): Parameters<GatewayParams>) -> Json<GatewayEnvelope> {
         Json(self.dispatch(params))
     }
 }
@@ -980,20 +1021,22 @@ impl ServerHandler for CompendiumServer {
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<rmcp::model::ReadResourceResponse, McpError>> + Send + '_ {
         let ttl = self.config.skill_resource_ttl_ms;
-        let result = self.read_skill_resource(&request.uri).map(|(mime, text, etag)| {
-            let mut meta = MetaObject::new();
-            meta.0.insert(
-                "etag".into(),
-                serde_json::Value::String(format!("\"{etag}\"")),
-            );
-            meta.0
-                .insert("contentHash".into(), serde_json::Value::String(etag));
-            ReadResourceResult::new(vec![ResourceContents::text(text, request.uri.clone())
-                .with_mime_type(mime)
-                .with_meta(meta)])
-            .with_ttl_ms(ttl)
-            .into()
-        });
+        let result = self
+            .read_skill_resource(&request.uri)
+            .map(|(mime, text, etag)| {
+                let mut meta = MetaObject::new();
+                meta.0.insert(
+                    "etag".into(),
+                    serde_json::Value::String(format!("\"{etag}\"")),
+                );
+                meta.0
+                    .insert("contentHash".into(), serde_json::Value::String(etag));
+                ReadResourceResult::new(vec![ResourceContents::text(text, request.uri.clone())
+                    .with_mime_type(mime)
+                    .with_meta(meta)])
+                .with_ttl_ms(ttl)
+                .into()
+            });
         std::future::ready(result)
     }
 }
@@ -1004,4 +1047,50 @@ fn content_etag(body: &str) -> String {
     let mut h = DefaultHasher::new();
     body.hash(&mut h);
     format!("{:x}", h.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_gateway_tool_registered() {
+        let names = CompendiumServer::tool_names();
+        assert_eq!(names, vec!["compendium".to_string()]);
+    }
+
+    #[test]
+    fn new_server_uses_config_cache_dir() {
+        let dir =
+            std::env::temp_dir().join(format!("compendium-server-cache-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let cfg = Config {
+            cache_dir: Some(dir.clone()),
+            cache_max_bytes: Some(1024 * 1024),
+            ..Default::default()
+        };
+        let server = CompendiumServer::new(cfg);
+        {
+            let mut state = server.state.lock().unwrap();
+            let stored = state.cache.store(
+                "hello",
+                &CacheStoreOptions {
+                    key: Some("s1".into()),
+                    ..Default::default()
+                },
+                &server.config,
+            );
+            assert_eq!(stored.backend, "disk");
+        }
+        let server2 = CompendiumServer::new(Config {
+            cache_dir: Some(dir.clone()),
+            cache_max_bytes: Some(1024 * 1024),
+            ..Default::default()
+        });
+        let mut state = server2.state.lock().unwrap();
+        let got = state.cache.get("s1", &server2.config);
+        assert!(got.hit);
+        assert_eq!(got.content, "hello");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

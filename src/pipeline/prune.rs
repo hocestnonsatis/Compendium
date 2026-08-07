@@ -287,7 +287,9 @@ fn apply_afm(
     Option<String>,
 ) {
     let critical_n = options.keep_last_n.max(1);
-    let thematic_n = options.thematic_n.unwrap_or(critical_n.saturating_mul(3).max(3));
+    let thematic_n = options
+        .thematic_n
+        .unwrap_or(critical_n.saturating_mul(3).max(3));
 
     if messages.len() <= critical_n {
         return (
