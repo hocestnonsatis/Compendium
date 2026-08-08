@@ -130,10 +130,12 @@ Packages to configure (same values on each):
 
 - https://www.npmjs.com/package/compendium-mcp/access
 - https://www.npmjs.com/package/compendium-mcp-darwin-arm64/access
-- https://www.npmjs.com/package/compendium-mcp-darwin-x64/access *(publish once, then add)*
+- https://www.npmjs.com/package/compendium-mcp-darwin-x64/access
 - https://www.npmjs.com/package/compendium-mcp-linux-x64/access
 - https://www.npmjs.com/package/compendium-mcp-linux-arm64/access
+- https://www.npmjs.com/package/compendium-mcp-linux-x64-musl/access *(brand-new: create Trusted Publisher before first OIDC publish, or one interactive publish first)*
 - https://www.npmjs.com/package/compendium-mcp-win32-x64/access
+- https://www.npmjs.com/package/compendium-mcp-win32-arm64/access *(brand-new: same as musl)*
 
 After OIDC works, optionally set **Publishing access** → “Require 2FA and disallow tokens”.
 
