@@ -188,3 +188,156 @@ async fn rerank_hybrid_uses_embeddings_when_configured() {
     assert!(result.fallback_reason.is_none());
     assert_eq!(result.hits[0].id.as_deref(), Some("auth"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rerank_cross_encoder_rescores_top_n() {
+    use compendium::{rerank, RerankItem, RerankOptions};
+    use wiremock::matchers::body_string_contains;
+
+    let server = MockServer::start().await;
+
+    // CE sees BM25-ordered top-N; flip so "css" outranks "oauth".
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .and(body_string_contains("css layout"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_chat_body("0.95")))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .and(body_string_contains("oauth refresh token path"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_chat_body("0.2")))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_chat_body("0.4")))
+        .mount(&server)
+        .await;
+
+    let config = Config {
+        local_llm: LocalLlmConfig {
+            enabled: true,
+            base_url: Some(format!("{}/v1", server.uri())),
+            model: "mock-model".into(),
+            embedding_model: None,
+            api_key: None,
+            timeout_secs: 10,
+        },
+        ..Config::default()
+    };
+
+    let items = vec![
+        RerankItem {
+            id: Some("oauth".into()),
+            text: "oauth refresh token path implementation".into(),
+        },
+        RerankItem {
+            id: Some("css".into()),
+            text: "css layout sidebar widgets".into(),
+        },
+        RerankItem {
+            id: Some("db".into()),
+            text: "database migration inventory notes".into(),
+        },
+        RerankItem {
+            id: Some("auth".into()),
+            text: "session cookie auth middleware".into(),
+        },
+    ];
+
+    let result = tokio::task::spawn_blocking(move || {
+        rerank(
+            "oauth refresh token",
+            &items,
+            &RerankOptions {
+                top_k: Some(2),
+                use_embeddings: false,
+                use_cross_encoder: Some(true),
+                cross_encoder_top_n: Some(4),
+                ..Default::default()
+            },
+            &config,
+        )
+    })
+    .await
+    .expect("join");
+
+    assert_eq!(result.backend, "cross_encoder");
+    assert!(result.fallback_reason.is_none());
+    assert!(result.hits[0].cross_encoder_score.is_some());
+    assert_eq!(result.hits[0].id.as_deref(), Some("css"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rerank_cross_encoder_prefers_rerank_api() {
+    use compendium::{rerank, RerankItem, RerankOptions};
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/rerank"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [
+                { "index": 1, "relevance_score": 0.99 },
+                { "index": 0, "relevance_score": 0.1 },
+                { "index": 2, "relevance_score": 0.05 },
+                { "index": 3, "relevance_score": 0.02 }
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    let config = Config {
+        local_llm: LocalLlmConfig {
+            enabled: true,
+            base_url: Some(format!("{}/v1", server.uri())),
+            model: "mock-rerank".into(),
+            embedding_model: None,
+            api_key: None,
+            timeout_secs: 10,
+        },
+        ..Config::default()
+    };
+
+    let items = vec![
+        RerankItem {
+            id: Some("first".into()),
+            text: "oauth refresh token path".into(),
+        },
+        RerankItem {
+            id: Some("second".into()),
+            text: "unrelated css widgets".into(),
+        },
+        RerankItem {
+            id: Some("third".into()),
+            text: "database notes".into(),
+        },
+        RerankItem {
+            id: Some("fourth".into()),
+            text: "inventory migration".into(),
+        },
+    ];
+
+    let result = tokio::task::spawn_blocking(move || {
+        rerank(
+            "oauth refresh",
+            &items,
+            &RerankOptions {
+                top_k: Some(2),
+                use_embeddings: false,
+                use_cross_encoder: Some(true),
+                cross_encoder_top_n: Some(4),
+                ..Default::default()
+            },
+            &config,
+        )
+    })
+    .await
+    .expect("join");
+
+    assert_eq!(result.backend, "cross_encoder");
+    assert_eq!(result.cross_encoder_mode.as_deref(), Some("rerank_api"));
+    assert!(result.cross_encoder_ms.is_some());
+    // API says local doc index 1 (second candidate in top-N list) wins.
+    assert_eq!(result.hits[0].id.as_deref(), Some("second"));
+}

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-08
+
+### Added
+
+- Cross-encoder hardening: prefer Cohere-style `POST /v1/rerank` when available (`cross_encoder_mode: rerank_api`); pairwise chat fallback; per-pair parse failures keep prior BM25/hybrid scores (`backend: cross_encoder_partial`).
+- `RerankResult.cross_encoder_ms` / `cross_encoder_mode` for telemetry (`stats.by_backend` already counts backends).
+- Playbook `hybrid-rerank` (`cmp://skill/playbook/hybrid-rerank`).
+
+## [0.3.1] - 2026-08-08
+
+### Added
+
+- Platform packages / release assets: `linux-x64-musl` (`x86_64-unknown-linux-musl` via cross) and `win32-arm64` (`windows-11-arm` runner).
+- `COMPENDIUM_PLATFORM` override; musl auto-detect for Linux x64 in `npm/lib/platform.js`.
+
+## [0.3.0] - 2026-08-08
+
+### Added
+
+- Opt-in SLM cross-encoder rescore for `rerank`: `rerank.use_cross_encoder` / `COMPENDIUM_RERANK_CROSS_ENCODER`, `cross_encoder_top_n` / `COMPENDIUM_CROSS_ENCODER_TOP_N` (default 16). Backend `cross_encoder`; hits expose `cross_encoder_score`. Falls back to BM25/hybrid with `fallback_reason` when the local LLM is unset or fails.
+- Example payload `examples/rerank-cross-encoder.json`.
+
+## [0.2.1] - 2026-08-08
+
+### Changed
+
+- Docs aligned with v0.2.0: REPORT banner/roadmap (audit + hybrid/cache/`llm_status` marked shipped), SECURITY support table (`0.2.x`), architecture notes for hybrid rerank and audit path.
+- README example tool calls use single `compendium` tool + `action` (removed legacy `compendium_*` names).
+
 ## [0.2.0] - 2026-08-07
 
 ### Added

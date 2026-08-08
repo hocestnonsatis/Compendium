@@ -116,7 +116,7 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `cache_get` | Retrieve by key | `key` |
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
 | `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
-| `rerank` | BM25 (+ optional loopback embeddings) rank candidates / chunks | `query`, `items` or `text` or chunk `map`, `rerank?` |
+| `rerank` | BM25 (+ optional loopback embeddings + opt-in SLM cross-encoder) rank candidates / chunks | `query`, `items` or `text` or chunk `map`, `rerank?` |
 | `brief` | Scan a workspace; pack a structured starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
 | `catalog` | Short action (+ playbook) ads; prefer before guessing | _(none)_ |
 | `help` | Usage notes for one action (default **compressed**; `force: true` → full) | `id`, `force?` |
@@ -269,6 +269,8 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id on that server (Ollama: e.g. `qwen:latest`) |
 | `COMPENDIUM_LOCAL_EMBED_MODEL` | _(same as chat)_ | Embeddings model for hybrid `rerank` / `brief` (e.g. `nomic-embed-text`) |
 | `COMPENDIUM_HYBRID_ALPHA` | `0.55` | BM25 weight in hybrid score (0–1); remainder is embedding cosine |
+| `COMPENDIUM_RERANK_CROSS_ENCODER` | _(off)_ | When `1`/`true`, `rerank` SLM-rescores top-N after BM25/hybrid |
+| `COMPENDIUM_CROSS_ENCODER_TOP_N` | `16` | Candidates passed to cross-encoder (clamped 4–64) |
 | `COMPENDIUM_AUDIT_PATH` | _(unset)_ | Append-only JSONL audit log (action metadata only; no payloads) |
 | `COMPENDIUM_LOCAL_LLM_API_KEY` | _(unset)_ | Optional bearer token for locked loopback servers |
 | `COMPENDIUM_LOCAL_LLM_TIMEOUT_SECS` | `120` | HTTP timeout (first model load can be slow) |
@@ -285,17 +287,17 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 
 ## Example tool calls
 
+All calls use the single tool **`compendium`** with an `action` field.
+
 **Filter noisy terminal output**
 
 ```json
 {
-  "name": "compendium_filter",
-  "arguments": {
-    "text": "\u001b[31mERROR\u001b[0m boom\n\n\nINFO ok",
-    "options": {
-      "strip_ansi": true,
-      "keep_patterns": ["ERROR|WARN"]
-    }
+  "action": "filter",
+  "text": "\u001b[31mERROR\u001b[0m boom\n\n\nINFO ok",
+  "filter": {
+    "strip_ansi": true,
+    "keep_patterns": ["ERROR|WARN"]
   }
 }
 ```
@@ -304,13 +306,11 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 
 ```json
 {
-  "name": "compendium_compress",
-  "arguments": {
-    "text": "...",
-    "options": {
-      "content_type": "log",
-      "max_tokens": 512
-    }
+  "action": "compress",
+  "text": "...",
+  "compress": {
+    "content_type": "log",
+    "max_tokens": 512
   }
 }
 ```
@@ -319,14 +319,12 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 
 ```json
 {
-  "name": "compendium_chunk",
-  "arguments": {
-    "text": "... huge file ...",
-    "options": {
-      "source": "file:///path/to/doc.md",
-      "chunk_tokens": 400,
-      "overlap_tokens": 40
-    }
+  "action": "chunk",
+  "text": "... huge file ...",
+  "chunk": {
+    "source": "file:///path/to/doc.md",
+    "chunk_tokens": 400,
+    "overlap_tokens": 40
   }
 }
 ```

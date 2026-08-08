@@ -1,6 +1,6 @@
 Architectural Blueprint for Compendium: High-Performance Local Context Optimization via MCP
 
-> **Status (v0.1.3):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy.
+> **Status (v0.4.0):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy.
 
 1. Executive Summary: The Context Bloat Crisis and Local Mitigation Strategies
 
@@ -99,9 +99,9 @@ Compendium Security Mandates (as implemented / planned)
 * **Loopback allowlist for LLM:** `COMPENDIUM_LOCAL_LLM_URL` must resolve to loopback (`127.0.0.1` / `::1`). This is intentional — local SLMs run on loopback.
 * **SSRF rejection:** Non-loopback hosts (including other private ranges such as `10.0.0.0/8` and `192.168.0.0/16`) are rejected. Do **not** block `127.0.0.0/8`; that would break BYO Ollama/llama.cpp server.
 * **Sanitize hooks:** Secrets, IPI phrases, and cross-app poison params (`systemPrompt`, `isVisible`, …) via `action=sanitize` / `sanitize_input`.
-* **Audit trails:** Opt-in forensic logging is **Next** (not yet shipped). Session `stats` covers token/latency telemetry only.
+* **Audit trails:** Opt-in JSONL forensic logging via `COMPENDIUM_AUDIT_PATH` (action metadata only; no request bodies). Session `stats` covers token/latency/cache telemetry.
 
-7. Roadmap status (aligned with v0.1.3+)
+7. Roadmap status (aligned with v0.2.0+)
 
 ### Shipped
 
@@ -110,23 +110,20 @@ Compendium Security Mandates (as implemented / planned)
 | Single gateway + action enum | `src/server.rs` — one tool `compendium` |
 | Signal-to-call (<1000 chars bypass) | `pipeline/signal.rs`; `force` overrides |
 | AFM `prune_history` | `strategy=afm` |
-| Query-aware filter / BM25 rerank / brief | Lexical BM25; not cross-encoder |
-| `stats` telemetry | Session counters + latency/bypass/backend |
+| Query-aware filter / BM25 + hybrid + opt-in CE rerank / brief | Lexical BM25; optional embeddings; opt-in CE (`/v1/rerank` or chat; partial resilience) |
+| Persistent session cache | `COMPENDIUM_CACHE_DIR` / `_MAX_BYTES`; TTL + stats counters |
+| `llm_status` | Probe local LLM `/models` (`force` = chat ping) |
+| Opt-in audit JSONL | `COMPENDIUM_AUDIT_PATH` |
+| `stats` telemetry | Session counters + latency/bypass/backend (incl. `cross_encoder`) |
 | Sanitize middleware | Secrets / IPI / poison params |
-| Progressive disclosure | `catalog`/`help`, `cmp://skill/…`, playbooks |
-| npm binary distribution | optionalDeps + GitHub Releases (Compendium binary, not llama weights) |
+| Progressive disclosure | `catalog`/`help`, `cmp://skill/…`, playbooks (incl. `hybrid-rerank`) |
+| npm binary distribution | optionalDeps + GitHub Releases; platforms include musl + win32-arm64 |
 | Brand icons (SEP-973) | data URIs; host rendering client-dependent |
+| PR CI + docs | `ci.yml`, `examples/`, CHANGELOG, `docs/architecture.md` |
 
 ### Next (prioritized)
 
-1. Cross-encoder SLM rerank on top-N (optional polish).
-2. Platform expansions on demand (musl / win32-arm64).
-
-### Recently completed (toward 0.2–0.3)
-
-- PR CI (`ci.yml`), `examples/`, CHANGELOG, architecture doc, REPORT hygiene.
-- Persistent session cache (`COMPENDIUM_CACHE_DIR` / `_MAX_BYTES`), TTL + stats counters.
-- Hybrid BM25 + loopback embeddings for `rerank` / `brief`; `llm_status`; opt-in `COMPENDIUM_AUDIT_PATH`.
+_(None — A-roadmap items through 0.4 shipped. Propose new work via issues.)_
 
 ### Deferred
 

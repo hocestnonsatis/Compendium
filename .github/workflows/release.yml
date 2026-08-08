@@ -72,10 +72,21 @@ jobs:
             asset: compendium-linux-arm64
             bin: compendium
             cross: true
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-22.04
+            platform: linux-x64-musl
+            asset: compendium-linux-x64-musl
+            bin: compendium
+            cross: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             platform: win32-x64
             asset: compendium-win32-x64.exe
+            bin: compendium.exe
+          - target: aarch64-pc-windows-msvc
+            os: windows-11-arm
+            platform: win32-arm64
+            asset: compendium-win32-arm64.exe
             bin: compendium.exe
 
     runs-on: ${{ matrix.os }}
@@ -238,7 +249,7 @@ jobs:
           # setup-node injects a placeholder NODE_AUTH_TOKEN; clear it so OIDC wins.
           unset NODE_AUTH_TOKEN || true
           failed=0
-          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 linux-x64-musl win32-x64 win32-arm64; do
             dest="npm/platforms/$platform"
             if [[ -e "$dest/bin/compendium" || -e "$dest/bin/compendium.exe" ]]; then
               echo "Publishing $dest …"

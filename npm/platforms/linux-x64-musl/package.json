@@ -1,13 +1,13 @@
 {
-  "name": "compendium-mcp-linux-arm64",
+  "name": "compendium-mcp-linux-x64-musl",
   "version": "0.4.0",
-  "description": "Linux arm64 native binary for compendium-mcp",
+  "description": "Linux x64 musl native binary for compendium-mcp",
   "license": "MIT",
   "os": [
     "linux"
   ],
   "cpu": [
-    "arm64"
+    "x64"
   ],
   "engines": {
     "node": ">=18"

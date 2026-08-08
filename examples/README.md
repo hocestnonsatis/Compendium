@@ -13,6 +13,7 @@ Each file is a single JSON object: set `action` and the fields that action needs
 | [`catalog.json`](catalog.json) | `catalog` | List action advertisements |
 | [`prune-afm.json`](prune-afm.json) | `prune_history` | AFM-tier history prune |
 | [`llm-status.json`](llm-status.json) | `llm_status` | Why smart/hybrid fell back to heuristics |
+| [`rerank-cross-encoder.json`](rerank-cross-encoder.json) | `rerank` | Opt-in SLM cross-encoder top-N rescore |
 
 CLI smoke (after `cargo build --release`):
 

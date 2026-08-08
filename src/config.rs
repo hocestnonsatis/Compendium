@@ -18,6 +18,8 @@ pub const DEFAULT_SKILL_RESOURCE_TTL_MS: u64 = 300_000;
 pub const DEFAULT_CACHE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 /// Default BM25 weight in hybrid rerank (identifier-friendly).
 pub const DEFAULT_HYBRID_ALPHA: f64 = 0.55;
+/// Default top-N candidates rescored by SLM cross-encoder.
+pub const DEFAULT_CROSS_ENCODER_TOP_N: usize = 16;
 
 /// Optional OpenAI-compatible local SLM endpoint.
 #[derive(Debug, Clone)]
@@ -107,6 +109,10 @@ pub struct Config {
     pub audit_path: Option<PathBuf>,
     /// Default BM25 weight for hybrid rerank (0.0–1.0). Remainder is embedding cosine.
     pub hybrid_alpha: f64,
+    /// When true, `rerank` may SLM-rescore top-N after BM25/hybrid (`COMPENDIUM_RERANK_CROSS_ENCODER`).
+    pub rerank_cross_encoder: bool,
+    /// Candidates passed to cross-encoder after lexical/hybrid rank.
+    pub cross_encoder_top_n: usize,
 }
 
 impl Default for Config {
@@ -129,6 +135,8 @@ impl Default for Config {
             cache_max_bytes: None,
             audit_path: None,
             hybrid_alpha: DEFAULT_HYBRID_ALPHA,
+            rerank_cross_encoder: false,
+            cross_encoder_top_n: DEFAULT_CROSS_ENCODER_TOP_N,
         }
     }
 }
@@ -201,6 +209,17 @@ impl Config {
             if let Ok(n) = v.parse::<f64>() {
                 if (0.0..=1.0).contains(&n) {
                     cfg.hybrid_alpha = n;
+                }
+            }
+        }
+        if let Ok(v) = env::var("COMPENDIUM_RERANK_CROSS_ENCODER") {
+            let t = v.trim().to_ascii_lowercase();
+            cfg.rerank_cross_encoder = matches!(t.as_str(), "1" | "true" | "yes" | "on");
+        }
+        if let Ok(v) = env::var("COMPENDIUM_CROSS_ENCODER_TOP_N") {
+            if let Ok(n) = v.parse::<usize>() {
+                if n > 0 {
+                    cfg.cross_encoder_top_n = n.clamp(4, 64);
                 }
             }
         }
@@ -291,6 +310,8 @@ mod tests {
         assert!(cfg.local_llm.base_url.is_none());
         assert!(cfg.cache_dir.is_none());
         assert!(cfg.cache_max_bytes.is_none());
+        assert!(!cfg.rerank_cross_encoder);
+        assert_eq!(cfg.cross_encoder_top_n, DEFAULT_CROSS_ENCODER_TOP_N);
     }
 
     #[test]

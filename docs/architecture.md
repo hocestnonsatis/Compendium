@@ -33,12 +33,16 @@ text / query / messages
   action dispatch (server.rs)
         │
         ├── heuristic pipeline (filter, compress, BM25, AFM, …)
+        ├── rerank / brief → BM25 (+ optional embeddings = hybrid)
+        │                         └── opt-in SLM cross-encoder top-N
         └── smart actions → loopback OpenAI-compatible SLM
                     │ on unset/fail
                     └── heuristic fallback (backend: "heuristic")
 ```
 
-Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load).
+Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
+
+**Next:** propose via issues — A-roadmap through 0.4 is shipped (see [REPORT.md](../REPORT.md) §7).
 
 ## Transports
 
@@ -52,6 +56,7 @@ Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cach
 - Local LLM URLs must resolve to **loopback** (SSRF guard). Non-loopback private ranges are rejected.
 - Archives never execute scripts; size/file caps apply.
 - Cloud embeddings / remote LLM bases are out of scope.
+- Hybrid `rerank` / `brief` may call loopback `/embeddings` when configured; never remote hosts.
 
 ## Related
 

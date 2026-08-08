@@ -1,0 +1,17 @@
+{
+  "action": "rerank",
+  "query": "oauth refresh token failure",
+  "items": [
+    { "id": "a", "text": "css layout sidebar widgets" },
+    { "id": "b", "text": "oauth refresh token expired 401" },
+    { "id": "c", "text": "database inventory migration" },
+    { "id": "d", "text": "session cookie middleware notes" }
+  ],
+  "rerank": {
+    "top_k": 3,
+    "use_embeddings": true,
+    "use_cross_encoder": true,
+    "cross_encoder_top_n": 8,
+    "include_text": false
+  }
+}

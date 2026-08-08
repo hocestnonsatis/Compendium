@@ -24,6 +24,10 @@ const EMBEDDED: &[(&str, &str)] = &[
         "workspace-brief",
         include_str!("../../playbooks/workspace-brief.md"),
     ),
+    (
+        "hybrid-rerank",
+        include_str!("../../playbooks/hybrid-rerank.md"),
+    ),
 ];
 
 /// Short playbook advertisement.

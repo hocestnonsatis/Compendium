@@ -139,7 +139,7 @@ const ACTIONS: &[ActionAd] = &[
     },
     ActionAd {
         id: "rerank",
-        one_liner: "BM25 (+ optional loopback embeddings) rank for a query",
+        one_liner: "BM25 (+ embeddings + opt-in SLM cross-encoder) rank for a query",
         when_to_use: "Pick the best chunks from a map or item list",
         fields: "query, items|text|map, rerank?",
         uri: "cmp://skill/action/rerank",
@@ -349,7 +349,7 @@ fn example_for(id: &str) -> Value {
             "action": "rerank",
             "query": "auth middleware",
             "items": [{ "id": "a", "text": "…" }, { "id": "b", "text": "…" }],
-            "rerank": { "top_k": 3, "use_embeddings": true, "alpha": 0.55 }
+            "rerank": { "top_k": 3, "use_embeddings": true, "alpha": 0.55, "use_cross_encoder": true, "cross_encoder_top_n": 8 }
         }),
         "llm_status" => json!({ "action": "llm_status", "force": false }),
         "brief" => json!({
@@ -389,7 +389,9 @@ fn notes_for(id: &str) -> Vec<&'static str> {
         "rerank" => vec![
             "Default: try loopback embeddings (COMPENDIUM_LOCAL_EMBED_MODEL or chat model) and blend with BM25.",
             "use_embeddings=false forces pure BM25; alpha / COMPENDIUM_HYBRID_ALPHA sets BM25 weight (default 0.55).",
-            "Without a reachable local LLM, backend stays bm25 with fallback_reason.",
+            "Opt-in SLM cross-encoder: use_cross_encoder=true or COMPENDIUM_RERANK_CROSS_ENCODER=1; top-N via cross_encoder_top_n / COMPENDIUM_CROSS_ENCODER_TOP_N (default 16).",
+            "CE prefers POST /v1/rerank when available (cross_encoder_mode=rerank_api); else pairwise chat. Partial pair failures keep prior scores (backend cross_encoder_partial).",
+            "Without a reachable local LLM, backend stays bm25/hybrid with fallback_reason.",
         ],
         "llm_status" => vec![
             "Reports whether COMPENDIUM_LOCAL_LLM_URL is set and reachable (GET /models).",

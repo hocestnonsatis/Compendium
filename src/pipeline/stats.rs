@@ -13,7 +13,7 @@ pub struct CallMeta {
     pub latency_ms: Option<f64>,
     /// Signal-to-call bypass (input left unchanged).
     pub bypassed: bool,
-    /// Processing backend label: `heuristic` | `local_llm` | `bm25` | `tiktoken`.
+    /// Processing backend label: `heuristic` | `local_llm` | `bm25` | `hybrid` | `cross_encoder` | ….
     pub backend: Option<String>,
 }
 

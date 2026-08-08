@@ -43,9 +43,13 @@ chmod +x npm/platforms/linux-x64/bin/compendium
 |--------------|-----------------|-------------|
 | macOS Apple Silicon | `darwin-arm64` | `compendium` |
 | macOS Intel | `darwin-x64` | `compendium` |
-| Linux x64 | `linux-x64` | `compendium` |
+| Linux x64 (glibc) | `linux-x64` | `compendium` |
+| Linux x64 (musl / Alpine) | `linux-x64-musl` | `compendium` |
 | Linux arm64 | `linux-arm64` | `compendium` |
 | Windows x64 | `win32-x64` | `compendium.exe` |
+| Windows ARM64 | `win32-arm64` | `compendium.exe` |
+
+Force a key with `COMPENDIUM_PLATFORM` (e.g. `linux-x64-musl`) when auto-detection is wrong.
 
 ### 3. Link packages locally
 

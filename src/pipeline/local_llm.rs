@@ -200,6 +200,63 @@ impl LocalLlmClient {
         Ok(out)
     }
 
+    /// Cohere-style `/rerank` when the local server exposes it (batched, faster than chat CE).
+    /// Returns `(original_document_index, relevance_score)` sorted by score descending.
+    pub fn rerank(
+        &self,
+        query: &str,
+        documents: &[String],
+        top_n: Option<usize>,
+    ) -> Result<Vec<(usize, f64)>, LocalLlmError> {
+        if documents.is_empty() {
+            return Ok(Vec::new());
+        }
+        let url = format!("{}/rerank", self.base_url);
+        let body = RerankApiRequest {
+            model: self.model.clone(),
+            query: query.to_string(),
+            documents: documents.to_vec(),
+            top_n,
+        };
+        let mut req = self.http.post(&url).json(&body);
+        if let Some(key) = &self.api_key {
+            if !key.is_empty() {
+                req = req.bearer_auth(key);
+            }
+        }
+        tracing::debug!(
+            url = %url,
+            model = %self.model,
+            n = documents.len(),
+            "local LLM rerank request"
+        );
+        let response = run_blocking(move || req.send())?;
+        let status = response.status();
+        let text = run_blocking(move || response.text())?;
+        if !status.is_success() {
+            return Err(LocalLlmError::BadStatus {
+                status: status.as_u16(),
+                body: text.chars().take(512).collect(),
+            });
+        }
+        let parsed: RerankApiResponse =
+            serde_json::from_str(&text).map_err(|e| LocalLlmError::Parse(e.to_string()))?;
+        let mut out = Vec::with_capacity(parsed.results.len());
+        for row in parsed.results {
+            let score = row
+                .relevance_score
+                .or(row.score)
+                .ok_or_else(|| LocalLlmError::Parse("rerank row missing score".into()))?;
+            out.push((row.index, score.clamp(0.0, 1.0)));
+        }
+        out.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        Ok(out)
+    }
+
     /// Lightweight health probe: list models, then optional tiny chat.
     pub fn probe(&self, check_chat: bool) -> LlmProbeResult {
         let started = std::time::Instant::now();
@@ -372,6 +429,30 @@ struct EmbeddingData {
     embedding: Vec<f32>,
     #[serde(default)]
     index: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+struct RerankApiRequest {
+    model: String,
+    query: String,
+    documents: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_n: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RerankApiResponse {
+    #[serde(default)]
+    results: Vec<RerankApiHit>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RerankApiHit {
+    index: usize,
+    #[serde(default)]
+    relevance_score: Option<f64>,
+    #[serde(default)]
+    score: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]

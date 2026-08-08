@@ -1,10 +1,10 @@
 {
-  "name": "compendium-mcp-linux-arm64",
+  "name": "compendium-mcp-win32-arm64",
   "version": "0.4.0",
-  "description": "Linux arm64 native binary for compendium-mcp",
+  "description": "Windows ARM64 native binary for compendium-mcp",
   "license": "MIT",
   "os": [
-    "linux"
+    "win32"
   ],
   "cpu": [
     "arm64"
