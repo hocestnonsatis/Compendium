@@ -5,16 +5,41 @@
 //! No cloud calls — the base URL must resolve to loopback (`127.0.0.1`, `::1`, or
 //! `localhost`) to prevent SSRF / data exfiltration.
 
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::net::IpAddr;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::config::LocalLlmConfig;
+use crate::pipeline::cache::CacheStore;
 
 /// Fixed seed for OpenAI-compatible servers that honor `seed` (prefix-cache friendly).
 pub const DETERMINISTIC_SEED: i64 = 0;
+
+/// Process-local embedding vector cache (model+text → vector).
+fn process_embed_cache() -> &'static Mutex<HashMap<String, Vec<f32>>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Vec<f32>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Stable key for embedding cache entries.
+pub fn embedding_cache_key(model: &str, text: &str) -> String {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    model.hash(&mut h);
+    text.hash(&mut h);
+    format!("cache://embed/{:016x}", h.finish())
+}
+
+/// Clear the process-local embedding cache (tests / diagnostics).
+pub fn clear_process_embed_cache() {
+    if let Ok(mut g) = process_embed_cache().lock() {
+        g.clear();
+    }
+}
 
 /// Errors from a local LLM round-trip.
 #[derive(Debug, Error)]
@@ -149,7 +174,80 @@ impl LocalLlmClient {
     }
 
     /// OpenAI-compatible embeddings for one or more input strings.
+    ///
+    /// Checks the process-local cache first, then optional [`CacheStore`] (session/disk),
+    /// then batches HTTP requests for misses only.
     pub fn embed(&self, model: &str, inputs: &[String]) -> Result<Vec<Vec<f32>>, LocalLlmError> {
+        self.embed_with_cache(model, inputs, None)
+    }
+
+    /// Like [`Self::embed`], optionally reading/writing vectors via session [`CacheStore`].
+    pub fn embed_with_cache(
+        &self,
+        model: &str,
+        inputs: &[String],
+        mut store: Option<&mut CacheStore>,
+    ) -> Result<Vec<Vec<f32>>, LocalLlmError> {
+        if inputs.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut out: Vec<Option<Vec<f32>>> = vec![None; inputs.len()];
+        let mut miss_indices: Vec<usize> = Vec::new();
+
+        {
+            let mem = process_embed_cache()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            for (i, text) in inputs.iter().enumerate() {
+                let key = embedding_cache_key(model, text);
+                if let Some(v) = mem.get(&key) {
+                    out[i] = Some(v.clone());
+                    continue;
+                }
+                if let Some(store) = store.as_mut() {
+                    if let Some(v) = store.get_embedding(&key) {
+                        out[i] = Some(v);
+                        continue;
+                    }
+                }
+                miss_indices.push(i);
+            }
+        }
+
+        if !miss_indices.is_empty() {
+            let miss_texts: Vec<String> = miss_indices.iter().map(|&i| inputs[i].clone()).collect();
+            let mut fetched: Vec<Vec<f32>> = Vec::with_capacity(miss_texts.len());
+            for chunk in miss_texts.chunks(32) {
+                fetched.extend(self.embed_http(model, chunk)?);
+            }
+            if fetched.len() != miss_indices.len() {
+                return Err(LocalLlmError::Parse(format!(
+                    "expected {} embedding(s), got {}",
+                    miss_indices.len(),
+                    fetched.len()
+                )));
+            }
+            let mut mem = process_embed_cache()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            for (j, vec) in fetched.into_iter().enumerate() {
+                let i = miss_indices[j];
+                let key = embedding_cache_key(model, &inputs[i]);
+                mem.insert(key.clone(), vec.clone());
+                if let Some(store) = store.as_mut() {
+                    store.put_embedding(&key, &vec);
+                }
+                out[i] = Some(vec);
+            }
+        }
+
+        out.into_iter()
+            .map(|v| v.ok_or_else(|| LocalLlmError::Parse("embedding cache hole".into())))
+            .collect()
+    }
+
+    fn embed_http(&self, model: &str, inputs: &[String]) -> Result<Vec<Vec<f32>>, LocalLlmError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
         }

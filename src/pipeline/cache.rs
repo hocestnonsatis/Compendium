@@ -268,6 +268,22 @@ impl CacheStore {
         );
     }
 
+    /// Load a cached embedding vector (JSON f32 array) by key.
+    pub fn get_embedding(&mut self, key: &str) -> Option<Vec<f32>> {
+        let got = self.get(key, &Config::default());
+        if !got.hit || got.content.is_empty() {
+            return None;
+        }
+        serde_json::from_str(&got.content).ok()
+    }
+
+    /// Persist an embedding vector under `key` (JSON f32 array).
+    pub fn put_embedding(&mut self, key: &str, vec: &[f32]) {
+        let content = serde_json::to_string(vec).unwrap_or_else(|_| "[]".into());
+        let tokens = content.len() / 4;
+        self.put_raw(key.to_string(), content, tokens);
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }

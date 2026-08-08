@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.4.x` (npm `compendium-mcp` / git tags `v0.4.x`) | ✅ |
+| `0.5.x` (npm `compendium-mcp` / git tags `v0.5.x`) | ✅ |
+| `0.4.x` | ✅ (security fixes only) |
 | Unreleased `master` | ✅ (best effort) |
 | Older tags | ❌ |
 

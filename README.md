@@ -101,9 +101,9 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 
 | `action` | Purpose | Main fields |
 |----------|---------|-------------|
-| `filter` | Strip ANSI, boilerplate, whitespace; densify JSON; keep/drop regexes | `text`, `filter` |
-| `compress` | Dense representation of text/code/logs | `text`, `compress` |
-| `compress_output` | Domain-aware stdout/stderr scrub (git, cargo, npm, docker, …) | `text`, `output` |
+| `filter` | Strip ANSI, boilerplate, whitespace; densify JSON; keep/drop regexes | `text`, `filter` — not for cargo/npm dumps (`compress_output`) |
+| `compress` | Dense representation of text/code/logs | `text`, `compress` — soft inputs under ~1000 chars bypass unless `force` |
+| `compress_output` | Domain-aware stdout/stderr scrub (git, cargo, npm, docker, …) | `text`, `output` — prefer when CLI domain is known |
 | `summarize` | Hierarchical summary (conversation / file tree / outline) | `text`, `summarize` |
 | `summarize_smart` | Local-SLM dense summary (heuristic fallback if unset/fails) | `text`, `smart?`, `summarize?` |
 | `filter_relevant` | Query-aware keep of relevant lines (local SLM + heuristic fallback) | `text`, `query`, `smart?` |
@@ -111,20 +111,20 @@ Single MCP tool: **`compendium`**. Choose the operation with `action`:
 | `chunk` | Split into `cmp://` chunks (session-cached) | `text`, `chunk` |
 | `resolve` | Fetch chunk content by id | `id` (+ optional `map` / `text`) |
 | `count_tokens` | Measure tokens | `text` |
-| `stats` | Session savings + latency/bypass/backend telemetry | `reset?` |
+| `stats` | Session savings + latency/bypass/backend telemetry | `reset?` — see playbook `stats-debug` |
 | `cache_store` | Park bulky payload outside the prompt | `text`, `cache` |
 | `cache_get` | Retrieve by key | `key` |
 | `cache_invalidate` | Drop one key or clear cache | `key?` |
-| `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` |
+| `sanitize` | Redact secrets + neutralize IPI phrases | `text`, `sanitize?` — or `sanitize_input` |
 | `rerank` | BM25 (+ optional loopback embeddings + opt-in SLM cross-encoder) rank candidates / chunks | `query`, `items` or `text` or chunk `map`, `rerank?` |
 | `brief` | Scan a workspace; pack a structured starter briefing + cache key | `query`, `brief?` (`root`, caps), optional `text` hint |
-| `catalog` | Short action (+ playbook) ads; prefer before guessing | _(none)_ |
+| `catalog` | Short action (+ playbook) ads; prefer before guessing | _(none)_ — call first when unsure |
 | `help` | Usage notes for one action (default **compressed**; `force: true` → full) | `id`, `force?` |
 | `playbooks` | List playbook ads | _(none)_ |
 | `playbook` | Load one playbook body | `id` |
 | `pack` | Zip text/files into a bounded archive | `text` or `items`, `pack?` |
 | `unpack` | Unpack zip with size caps into chunks (never runs scripts) | `text` or `key`, `pack?` |
-| `llm_status` | Probe configured local LLM (models; `force` = chat ping) | `force?` |
+| `llm_status` | Probe configured local LLM (models; `force` = chat ping) | `force?` — when smart/hybrid unexpectedly heuristic |
 
 ### Progressive disclosure (skills)
 
@@ -162,22 +162,24 @@ Response envelope: `{ "ok": true, "action": "filter", "result_json": "{...}" }`.
 assets/                # brand mark (SVG/PNG); baked into MCP icons via data URI
 docs/                  # architecture notes
 examples/              # sample MCP tool-call JSON payloads
+testdata/              # eval fixtures (noisy logs, cargo fail, …)
 src/
   main.rs              # CLI: stdio | http
   lib.rs
   brand.rs             # SEP-973 icons for serverInfo + tool
   config.rs            # COMPENDIUM_* env config
-  server.rs            # MCP tool + resources handlers (rmcp)
+  server/              # MCP tool + resources + action handlers (rmcp)
   http.rs              # Streamable HTTP/SSE (feature = "http")
   pipeline/
+    brief/             # workspace brief (walk / window / pack / synthesize)
     tokens.rs          # heuristic or tiktoken BPE (feature = "real-tokens")
     filter.rs
     compress.rs
     summarize.rs
     smart.rs           # summarize_smart + filter_relevant
-    local_llm.rs       # OpenAI-compatible local SLM client
+    local_llm.rs       # OpenAI-compatible local SLM client (+ embed cache)
     chunk.rs           # chunk + resolve
-    cache.rs           # session key/value cache (+ optional disk)
+    cache.rs           # session key/value cache (+ optional disk / embed vectors)
     catalog.rs         # action ads + help (progressive disclosure)
     playbook.rs        # bundled / dir playbooks
     pack.rs            # zip pack/unpack with size caps
@@ -188,6 +190,7 @@ playbooks/             # embedded skill-md playbooks
 tests/
   integration.rs
   e2e_smoke.rs         # spawns binary, MCP handshake, tools + resources
+  eval_regression.rs   # B1 heuristic quality + latency smoke
 CHANGELOG.md
 REPORT.md              # design essay + Shipped/Next/Deferred roadmap
 ```

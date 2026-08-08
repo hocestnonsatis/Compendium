@@ -341,3 +341,52 @@ async fn rerank_cross_encoder_prefers_rerank_api() {
     // API says local doc index 1 (second candidate in top-N list) wins.
     assert_eq!(result.hits[0].id.as_deref(), Some("second"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn embed_cache_avoids_second_http_roundtrip() {
+    use compendium::pipeline::local_llm::{clear_process_embed_cache, LocalLlmClient};
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/embeddings"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [
+                { "index": 0, "embedding": [1.0, 0.0, 0.0] },
+                { "index": 1, "embedding": [0.9, 0.1, 0.0] }
+            ],
+            "model": "mock-embed",
+            "object": "list"
+        })))
+        .mount(&server)
+        .await;
+
+    let base = format!("{}/v1", server.uri());
+    let (a, b) = tokio::task::spawn_blocking(move || {
+        clear_process_embed_cache();
+        let config = LocalLlmConfig {
+            enabled: true,
+            base_url: Some(base),
+            model: "mock-embed".into(),
+            embedding_model: Some("mock-embed".into()),
+            api_key: None,
+            timeout_secs: 10,
+        };
+        let client = LocalLlmClient::from_config(&config)
+            .expect("enabled")
+            .expect("client");
+        let inputs = vec!["query auth".into(), "doc about auth tokens".into()];
+        let a = client.embed("mock-embed", &inputs).expect("embed1");
+        let b = client.embed("mock-embed", &inputs).expect("embed2");
+        (a, b)
+    })
+    .await
+    .expect("join");
+
+    assert_eq!(a, b);
+    let reqs = server.received_requests().await.expect("received");
+    let embeds = reqs
+        .iter()
+        .filter(|r| r.url.path().ends_with("/embeddings"))
+        .count();
+    assert_eq!(embeds, 1, "second embed must use process cache");
+}

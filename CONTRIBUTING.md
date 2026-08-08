@@ -46,7 +46,7 @@ npm packaging notes: [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md).
 1. Describe **why** the change exists (not only what files moved).
 2. Note how you tested (`cargo test`, e2e smoke, manual MCP call).
 3. Update `README.md` only when user-facing behavior changes.
-4. For releases: versions stay aligned across `Cargo.toml`, root `package.json`, and `npm/platforms/*/package.json`. CI publishes via Trusted Publishing (OIDC) on GitHub Release tags. New platform packages (`compendium-mcp-linux-x64-musl`, `compendium-mcp-win32-arm64`, …) each need an npm Trusted Publisher entry pointing at workflow `release.yml`.
+4. For releases: versions stay aligned across `Cargo.toml`, root `package.json`, and `npm/platforms/*/package.json`. CI publishes via Trusted Publishing (OIDC) on GitHub Release tags. Before tagging `v0.4.0+`, confirm npm Trusted Publisher entries exist for **every** platform package including `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` (workflow `release.yml`).
 
 ## Issues
 

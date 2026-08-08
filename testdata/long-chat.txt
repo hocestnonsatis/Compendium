@@ -1,0 +1,92 @@
+user: Turn 0 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 0 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Thanks!
+assistant: You are welcome.
+user: Turn 1 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 1 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 2 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 2 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 3 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 3 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 4 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 4 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 5 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 5 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 6 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 6 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 7 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 7 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Thanks!
+assistant: You are welcome.
+user: Turn 8 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 8 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 9 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 9 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 10 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 10 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 11 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 11 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 12 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 12 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 13 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 13 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 14 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 14 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Thanks!
+assistant: You are welcome.
+user: Turn 15 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 15 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 16 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 16 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 17 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 17 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 18 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 18 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 19 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 19 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 20 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 20 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 21 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 21 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Thanks!
+assistant: You are welcome.
+user: Turn 22 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 22 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 23 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 23 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 24 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 24 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 25 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 25 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 26 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 26 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 27 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 27 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 28 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 28 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Thanks!
+assistant: You are welcome.
+user: Turn 29 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 29 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 30 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 30 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 31 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 31 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 32 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 32 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 33 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 33 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 34 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 34 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 35 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 35 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Thanks!
+assistant: You are welcome.
+user: Turn 36 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 36 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 37 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 37 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 38 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 38 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.
+user: Turn 39 ask about feature details carefully and authentication refresh tokens.
+assistant: Turn 39 reply with cargo build --release and check COMPENDIUM_CACHE_DIR settings.

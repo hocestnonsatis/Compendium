@@ -14,4 +14,5 @@ tags: rerank, embeddings, cross-encoder, retrieval
    - Otherwise Compendium falls back to pairwise chat scoring (`cross_encoder_mode: chat`).
 4. Check `backend`: `hybrid` | `cross_encoder` | `cross_encoder_partial` | `bm25`.
 5. Use top hits only; keep `include_text: false` unless you need full bodies in context.
-6. `action=stats` → `by_backend` counts CE usage; result may include `cross_encoder_ms`.
+6. `action=stats` → `by_backend` counts CE usage (`cross_encoder` / `cross_encoder_partial`); result may include `cross_encoder_ms` and `cross_encoder_mode`.
+7. Embedding vectors are cached in-process (and in session/disk cache when `COMPENDIUM_CACHE_DIR` is set) so repeated `rerank` calls avoid re-hitting `/embeddings`.

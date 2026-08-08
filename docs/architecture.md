@@ -42,7 +42,20 @@ text / query / messages
 
 Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
 
-**Next:** propose via issues — A-roadmap through 0.4 is shipped (see [REPORT.md](../REPORT.md) §7).
+**Next:** B-roadmap (eval/perf → agent DX → local retrieval → maintain). See [REPORT.md](../REPORT.md) §7. Deferred: embedded LLM, foreign MCP proxy, cloud embeddings.
+
+## Quality gates
+
+- Fixtures: [`testdata/`](../testdata/) (noisy logs, cargo fail, long chat, bulky JSON, rerank candidates).
+- CI: `cargo test --test eval_regression` — token-reduction floors, heuristic determinism, soft latency smoke.
+- Latency budget: `COMPENDIUM_EVAL_LATENCY_MS` (default 2000 locally; CI uses a higher soft cap).
+- Heuristic paths must stay deterministic (prefix-cache friendly). Smart/SLM paths report `backend`.
+
+## Hybrid retrieval
+
+- `rerank` / `brief` default `use_embeddings: true` when a loopback LLM is configured; blend weight `COMPENDIUM_HYBRID_ALPHA` (default 0.55 BM25).
+- Opt-in CE: `COMPENDIUM_RERANK_CROSS_ENCODER` / `rerank.use_cross_encoder`; prefer `/v1/rerank`, else chat; partial pair failures keep prior scores (`cross_encoder_partial`).
+- Embedding vectors are cached in-process and, when session cache is used, under `cache://embed/…` keys (also persisted if `COMPENDIUM_CACHE_DIR` is set).
 
 ## Transports
 

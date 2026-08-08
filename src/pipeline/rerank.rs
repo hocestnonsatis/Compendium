@@ -4,14 +4,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::pipeline::bm25::score_documents;
+use crate::pipeline::cache::CacheStore;
 use crate::pipeline::local_llm::{LocalLlmClient, LocalLlmError};
 use crate::pipeline::tokens::estimate_tokens;
 use crate::pipeline::TokenMetrics;
 
 /// Cap characters sent to the embeddings API per candidate.
 const EMBED_MAX_CHARS: usize = 4_000;
-/// Max texts per embeddings HTTP request.
-const EMBED_BATCH: usize = 32;
 /// Cap document chars sent to the cross-encoder chat scorer.
 const CE_DOC_MAX_CHARS: usize = 3_000;
 /// Soft max tokens for a score-only chat reply.
@@ -210,7 +209,12 @@ fn normalize_raw_score(v: f64) -> f64 {
     }
 }
 
-fn try_embeddings(config: &Config, query: &str, docs: &[&str]) -> Result<Vec<f64>, String> {
+fn try_embeddings(
+    config: &Config,
+    query: &str,
+    docs: &[&str],
+    cache: Option<&mut CacheStore>,
+) -> Result<Vec<f64>, String> {
     let Some(client_res) = LocalLlmClient::from_config(&config.local_llm) else {
         return Err("local LLM unset".into());
     };
@@ -223,11 +227,9 @@ fn try_embeddings(config: &Config, query: &str, docs: &[&str]) -> Result<Vec<f64
         inputs.push(d.chars().take(EMBED_MAX_CHARS).collect());
     }
 
-    let mut all_vecs: Vec<Vec<f32>> = Vec::with_capacity(inputs.len());
-    for chunk in inputs.chunks(EMBED_BATCH) {
-        let batch = client.embed(&model, chunk).map_err(|e| e.to_string())?;
-        all_vecs.extend(batch);
-    }
+    let all_vecs = client
+        .embed_with_cache(&model, &inputs, cache)
+        .map_err(|e| e.to_string())?;
     if all_vecs.len() != inputs.len() {
         return Err(format!(
             "embedding count mismatch: got {} want {}",
@@ -362,6 +364,17 @@ pub fn rerank(
     options: &RerankOptions,
     config: &Config,
 ) -> RerankResult {
+    rerank_with_cache(query, items, options, config, None)
+}
+
+/// Like [`rerank`], optionally using session/disk [`CacheStore`] for embedding vectors.
+pub fn rerank_with_cache(
+    query: &str,
+    items: &[RerankItem],
+    options: &RerankOptions,
+    config: &Config,
+    cache: Option<&mut CacheStore>,
+) -> RerankResult {
     let query = query.trim();
     let docs: Vec<&str> = items.iter().map(|i| i.text.as_str()).collect();
     let scored = score_documents(query, &docs);
@@ -383,7 +396,7 @@ pub fn rerank(
     let mut had_hybrid = false;
 
     if options.use_embeddings && !items.is_empty() {
-        match try_embeddings(config, query, &docs) {
+        match try_embeddings(config, query, &docs, cache) {
             Ok(cos) => {
                 embedding_scores = Some(cos.clone());
                 final_scores = blend_hybrid(&bm25_norm, &cos, alpha);

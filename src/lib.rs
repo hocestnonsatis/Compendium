@@ -36,7 +36,10 @@ pub use pipeline::{
         parse_history_input, prune_history, AfmTier, HistoryMessage, PruneOptions, PruneResult,
         PruneStrategy,
     },
-    rerank::{parse_rerank_items, rerank, RerankHit, RerankItem, RerankOptions, RerankResult},
+    rerank::{
+        parse_rerank_items, rerank, rerank_with_cache, RerankHit, RerankItem, RerankOptions,
+        RerankResult,
+    },
     sanitize::{sanitize, SanitizeFinding, SanitizeOptions, SanitizeResult},
     signal::{bypass_reason, should_bypass_signal},
     smart::{

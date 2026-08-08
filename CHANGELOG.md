@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-08
+
+### Added
+
+- B-roadmap quality gates: `testdata/` fixtures + `tests/eval_regression.rs` (determinism, reduction floors, soft latency smoke); CI job `eval regression`.
+- Playbooks: `brief-then-rerank`, `sanitize-untrusted`, `stats-debug`.
+- Process-local (+ session/disk) embedding vector cache for `/embeddings` (`LocalLlmClient::embed_with_cache`, `CacheStore::{get,put}_embedding`, `rerank_with_cache`).
+- `docs/architecture.md` Quality gates section; REPORT §7 Next filled with B-roadmap.
+
+### Changed
+
+- Catalog `when_to_use` copy tightened for common mis-picks (filter vs compress_output, signal bypass, llm_status).
+- `brief` Read next always emits stable skill/playbook URIs (deduped).
+- Split `brief` into `walk` / `window` / `pack` / `synthesize`; split `server` into `actions` (behavior-preserving).
+
 ## [0.4.0] - 2026-08-08
 
 ### Added

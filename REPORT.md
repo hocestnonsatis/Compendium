@@ -1,6 +1,6 @@
 Architectural Blueprint for Compendium: High-Performance Local Context Optimization via MCP
 
-> **Status (v0.4.0):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy.
+> **Status (v0.5.0):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap (eval/DX/retrieval/maintain) shipped in 0.5.0; deferred items below remain out of scope.
 
 1. Executive Summary: The Context Bloat Crisis and Local Mitigation Strategies
 
@@ -120,10 +120,20 @@ Compendium Security Mandates (as implemented / planned)
 | npm binary distribution | optionalDeps + GitHub Releases; platforms include musl + win32-arm64 |
 | Brand icons (SEP-973) | data URIs; host rendering client-dependent |
 | PR CI + docs | `ci.yml`, `examples/`, CHANGELOG, `docs/architecture.md` |
+| Eval regression + latency smoke | `testdata/`, `tests/eval_regression.rs`, CI gate |
+| Agent DX playbooks | `brief-then-rerank`, `sanitize-untrusted`, `stats-debug` |
+| Embedding vector cache | Process-local + session/disk `cache://embed/…` |
+| brief/server module split | `pipeline/brief/{walk,window,pack,synthesize}`, `server/actions` |
 
-### Next (prioritized)
+### Next (prioritized) — B-roadmap
 
-_(None — A-roadmap items through 0.4 shipped. Propose new work via issues.)_
+| Phase | Focus | Status |
+|-------|--------|--------|
+| **B0** | Release catch-up | Docs/Trusted Publisher notes ready; tag/publish `v0.5.0` when maintainer approves |
+| **B1** | Eval + perf | Shipped in 0.5.0 (`testdata/`, `eval_regression`, CI) |
+| **B2** | Agent DX | Shipped in 0.5.0 (playbooks, catalog, brief Read next) |
+| **B3** | Local retrieval | Shipped in 0.5.0 (embed cache + hybrid/CE docs/tests) |
+| **B4** | Maintain | Shipped in 0.5.0 (`brief/` + `server/` split) |
 
 ### Deferred
 
@@ -140,7 +150,7 @@ DO
 
 * Keep heuristic pipelines fast and deterministic (prefix-cache friendly).
 * Enforce local-first privacy: LLM and future embedding URLs on loopback only.
-* Prefer hybrid BM25 + local vectors when improving retrieval (Next).
+* Prefer hybrid BM25 + local vectors when improving retrieval (B3).
 * Ship npm/GitHub prebuilt **Compendium** binaries; document BYO SLM separately.
 * Use deterministic compressors by default; smart/SLM paths must report `backend`.
 

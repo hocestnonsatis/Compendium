@@ -1,0 +1,39 @@
+2026-08-08T10:00:01.123Z INFO  starting worker pool size=8
+-
+/
+|
+\
+-
+/
+|
+\
+2026-08-08T10:00:01.200Z DEBUG spinner frame 1
+2026-08-08T10:00:01.201Z DEBUG spinner frame 2
+2026-08-08T10:00:01.202Z DEBUG spinner frame 3
+2026-08-08T10:00:01.203Z DEBUG spinner frame 4
+2026-08-08T10:00:01.204Z DEBUG spinner frame 5
+2026-08-08T10:00:01.205Z DEBUG spinner frame 6
+2026-08-08T10:00:01.206Z DEBUG spinner frame 7
+2026-08-08T10:00:01.207Z DEBUG spinner frame 8
+[32mOK[0m connected to redis://127.0.0.1:6379
+2026-08-08T10:00:02.000Z INFO  health check passed
+2026-08-08T10:00:02.001Z DEBUG heartbeat ok
+2026-08-08T10:00:02.002Z DEBUG heartbeat ok
+2026-08-08T10:00:02.003Z DEBUG heartbeat ok
+2026-08-08T10:00:02.004Z DEBUG heartbeat ok
+2026-08-08T10:00:02.005Z DEBUG heartbeat ok
+2026-08-08T10:00:03.500Z WARN  retrying request attempt=1
+2026-08-08T10:00:03.900Z ERROR failed to fetch user profile: status=500 body={"error":"internal"}
+2026-08-08T10:00:04.000Z DEBUG spinner frame 9
+2026-08-08T10:00:04.001Z DEBUG spinner frame 10
+2026-08-08T10:00:04.100Z INFO  request id=req-9f3a completed in 12ms
+2026-08-08T10:00:04.200Z     
+2026-08-08T10:00:04.201Z     
+2026-08-08T10:00:04.202Z     
+2026-08-08T10:00:05.000Z ERROR database timeout after 30s on query SELECT * FROM sessions
+2026-08-08T10:00:05.100Z INFO  shutting down gracefully
+2026-08-08T10:00:05.101Z DEBUG teardown step 1
+2026-08-08T10:00:05.102Z DEBUG teardown step 2
+2026-08-08T10:00:05.103Z DEBUG teardown step 3
+2026-08-08T10:00:05.104Z DEBUG teardown step 4
+2026-08-08T10:00:05.105Z DEBUG teardown step 5

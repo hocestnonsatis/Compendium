@@ -1,0 +1,7 @@
+auth token refresh failed with status 401
+
+sidebar theme color tokens for dark mode
+
+cargo build finished successfully without errors
+
+database connection pool exhausted under load

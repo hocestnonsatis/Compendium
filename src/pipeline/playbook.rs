@@ -28,6 +28,18 @@ const EMBEDDED: &[(&str, &str)] = &[
         "hybrid-rerank",
         include_str!("../../playbooks/hybrid-rerank.md"),
     ),
+    (
+        "brief-then-rerank",
+        include_str!("../../playbooks/brief-then-rerank.md"),
+    ),
+    (
+        "sanitize-untrusted",
+        include_str!("../../playbooks/sanitize-untrusted.md"),
+    ),
+    (
+        "stats-debug",
+        include_str!("../../playbooks/stats-debug.md"),
+    ),
 ];
 
 /// Short playbook advertisement.
