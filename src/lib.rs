@@ -26,7 +26,9 @@ pub use pipeline::{
     chunk::{chunk_with_refs, resolve_chunk, resolve_ref, ChunkMap, ChunkOptions, ResolveResult},
     compress::{compress, CompressOptions, CompressResult},
     filter::{filter, FilterOptions, FilterResult},
-    local_llm::{llm_status, LlmStatusResult},
+    local_llm::{
+        clear_process_embed_cache, llm_status, process_embed_cache_counters, LlmStatusResult,
+    },
     output::{compress_output, CompressOutputOptions, CompressOutputResult},
     pack::{
         pack_items, parse_pack_text, unpack_bytes, PackItem, PackOptions, PackResult, UnpackResult,

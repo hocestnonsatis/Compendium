@@ -100,6 +100,12 @@ pub struct SessionStats {
     pub cache_bytes: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_dir: Option<String>,
+    /// Process-local (+ session) embedding vector cache hits.
+    #[serde(default)]
+    pub embed_cache_hits: usize,
+    /// Embedding lookups that required an HTTP `/embeddings` call.
+    #[serde(default)]
+    pub embed_cache_misses: usize,
     #[serde(skip)]
     latency_samples_ms: Vec<f64>,
     /// Last discovered action/playbook id awaiting follow-through.

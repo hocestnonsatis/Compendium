@@ -40,6 +40,18 @@ const EMBEDDED: &[(&str, &str)] = &[
         "stats-debug",
         include_str!("../../playbooks/stats-debug.md"),
     ),
+    (
+        "pack-unpack",
+        include_str!("../../playbooks/pack-unpack.md"),
+    ),
+    (
+        "install-npx",
+        include_str!("../../playbooks/install-npx.md"),
+    ),
+    (
+        "http-transport",
+        include_str!("../../playbooks/http-transport.md"),
+    ),
 ];
 
 /// Short playbook advertisement.

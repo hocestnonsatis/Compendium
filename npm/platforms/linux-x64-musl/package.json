@@ -1,6 +1,6 @@
 {
   "name": "compendium-mcp-linux-x64-musl",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Linux x64 musl native binary for compendium-mcp",
   "license": "MIT",
   "os": [

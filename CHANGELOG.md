@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-08
+
+### Added
+
+- C-roadmap: stronger eval floors (brief structure, AFM distant keys, sanitize counts, hybrid fallback reason); playbooks `pack-unpack`, `install-npx`, `http-transport`.
+- `rerank` / `stats`: `embed_cache_hits` / `embed_cache_misses` telemetry; clearer hybrid→bm25 `fallback_reason`.
+- Mock coverage for `cross_encoder_partial` (`tests/local_llm_mock.rs`).
+
+### Changed
+
+- Docs: architecture/REPORT Next → C-roadmap; CONTRIBUTING documents `eval_regression`; shared-cache + binary-freshness ops notes.
+
 ## [0.5.0] - 2026-08-08
 
 ### Added

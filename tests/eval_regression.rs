@@ -9,9 +9,9 @@ use std::time::Instant;
 use compendium::pipeline::output::OutputDomain;
 use compendium::pipeline::summarize::SummarizeMode;
 use compendium::{
-    compress, compress_output, filter, prune_history, rerank, sanitize, summarize, CompressOptions,
-    CompressOutputOptions, Config, FilterOptions, HistoryMessage, PruneOptions, PruneStrategy,
-    RerankItem, RerankOptions, SanitizeOptions, SummarizeOptions,
+    brief, compress, compress_output, filter, prune_history, rerank, sanitize, summarize,
+    BriefOptions, CompressOptions, CompressOutputOptions, Config, FilterOptions, HistoryMessage,
+    PruneOptions, PruneStrategy, RerankItem, RerankOptions, SanitizeOptions, SummarizeOptions,
 };
 
 fn testdata(name: &str) -> PathBuf {
@@ -50,7 +50,7 @@ fn filter_noisy_log_reduces_and_is_deterministic() {
     let b = filter(&text, &opts, &cfg);
     assert_deterministic(&a.content, &b.content);
     assert!(
-        a.metrics.reduction_ratio >= 0.05 || a.lines_removed >= 3,
+        a.metrics.reduction_ratio >= 0.03 && a.lines_removed >= 3,
         "expected filter savings; ratio={} lines_removed={}",
         a.metrics.reduction_ratio,
         a.lines_removed
@@ -94,7 +94,7 @@ fn compress_bulky_json_reduces() {
     let b = compress(&text, &opts, &cfg);
     assert_deterministic(&a.content, &b.content);
     assert!(
-        a.metrics.reduction_ratio >= 0.20 || a.metrics.result_tokens < a.metrics.original_tokens,
+        a.metrics.reduction_ratio >= 0.20,
         "expected meaningful compression; ratio={}",
         a.metrics.reduction_ratio
     );
@@ -136,6 +136,18 @@ fn prune_afm_long_chat_shrinks() {
         "AFM should shrink long chat; ratio={}",
         a.metrics.reduction_ratio
     );
+    assert!(
+        a.distant_key
+            .as_deref()
+            .is_some_and(|k| k.starts_with("cmp://afm/") || k.starts_with("cache://")),
+        "AFM distant tier must expose a cmp://afm/ or cache:// key; got {:?}",
+        a.distant_key
+    );
+    assert!(
+        a.tiers.iter().any(|t| t.name == "distant"),
+        "AFM must emit a distant tier"
+    );
+    assert!(a.rendered.contains("distant memory ref="));
 }
 
 #[test]
@@ -174,6 +186,16 @@ fn sanitize_redacts_secret_patterns() {
     let b = sanitize(text, &SanitizeOptions::default(), &cfg);
     assert_deterministic(&a.content, &b.content);
     assert!(!a.content.contains("sk-abc123SECRET"));
+    assert!(
+        a.redacted_count >= 1,
+        "expected at least one redaction; findings={:?}",
+        a.findings
+    );
+    assert!(
+        a.findings.iter().any(|f| f.kind == "secret" || f.kind == "ipi" || f.kind == "poison"),
+        "expected sanitize findings; got {:?}",
+        a.findings
+    );
 }
 
 #[test]
@@ -243,5 +265,110 @@ fn heuristic_latency_smoke_under_budget() {
     assert!(
         elapsed_ms < budget,
         "heuristic latency smoke {elapsed_ms:.1}ms exceeded budget {budget}ms (set COMPENDIUM_EVAL_LATENCY_MS)"
+    );
+}
+
+#[test]
+fn brief_structured_briefing_and_sources() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("compendium-eval-brief-{nanos}"));
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).expect("mkdir");
+    std::fs::write(
+        src.join("auth.rs"),
+        "// auth token refresh helper\npub fn refresh_token() {}\n",
+    )
+    .expect("write auth");
+    std::fs::write(
+        src.join("ui.rs"),
+        "// css layout sidebar widgets\npub fn paint() {}\n",
+    )
+    .expect("write ui");
+    std::fs::write(
+        root.join("README.md"),
+        "# Demo\nAuth token docs for agents.\n",
+    )
+    .expect("write readme");
+
+    let cfg = Config::default();
+    let opts = BriefOptions {
+        root: Some(root.display().to_string()),
+        max_files: 10,
+        max_file_bytes: 8_192,
+        max_total_bytes: 32_768,
+        top_k_chunks: 6,
+        max_brief_tokens: Some(800),
+        ..Default::default()
+    };
+    let a = brief("auth token refresh", None, &opts, &cfg).expect("brief");
+    let b = brief("auth token refresh", None, &opts, &cfg).expect("brief");
+    let _ = std::fs::remove_dir_all(&root);
+    assert_deterministic(&a.briefing, &b.briefing);
+    for heading in [
+        "## Task",
+        "## Status",
+        "## Evidence",
+        "## Caveats",
+        "## Sources",
+        "## Read next",
+    ] {
+        assert!(
+            a.briefing.contains(heading),
+            "briefing missing {heading}; got:\n{}",
+            a.briefing
+        );
+    }
+    assert!(
+        !a.sources.is_empty(),
+        "brief must select at least one source"
+    );
+    assert!(
+        a.sources.iter().any(|s| s.path.contains("auth")),
+        "expected auth-related source; got {:?}",
+        a.sources.iter().map(|s| &s.path).collect::<Vec<_>>()
+    );
+    assert!(
+        a.briefing.contains("cmp://skill/"),
+        "Read next should include stable skill URIs"
+    );
+}
+
+#[test]
+fn hybrid_rerank_falls_back_with_explicit_reason_without_llm() {
+    let cfg = Config::default();
+    let items = vec![
+        RerankItem {
+            id: Some("a".into()),
+            text: "auth token refresh".into(),
+        },
+        RerankItem {
+            id: Some("b".into()),
+            text: "css layout".into(),
+        },
+    ];
+    let result = rerank(
+        "auth token",
+        &items,
+        &RerankOptions {
+            use_embeddings: true,
+            use_cross_encoder: Some(false),
+            top_k: Some(2),
+            ..Default::default()
+        },
+        &cfg,
+    );
+    assert_eq!(result.backend, "bm25");
+    assert!(
+        result
+            .fallback_reason
+            .as_deref()
+            .is_some_and(|s| s.contains("embeddings unavailable") && s.contains("bm25")),
+        "expected explicit hybrid→bm25 fallback_reason; got {:?}",
+        result.fallback_reason
     );
 }

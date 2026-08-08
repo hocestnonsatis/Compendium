@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::config::Config;
 use crate::pipeline::bm25::score_documents;
 use crate::pipeline::cache::CacheStore;
-use crate::pipeline::local_llm::{LocalLlmClient, LocalLlmError};
+use crate::pipeline::local_llm::{
+    process_embed_cache_counters, LocalLlmClient, LocalLlmError,
+};
 use crate::pipeline::tokens::estimate_tokens;
 use crate::pipeline::TokenMetrics;
 
@@ -112,6 +114,12 @@ pub struct RerankResult {
     /// How CE ran: `rerank_api` | `chat` | absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cross_encoder_mode: Option<String>,
+    /// Embedding lookup hits during this call (process + session cache).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embed_cache_hits: Option<usize>,
+    /// Embedding lookup misses that required `/embeddings` HTTP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embed_cache_misses: Option<usize>,
     pub metrics: TokenMetrics,
 }
 
@@ -214,11 +222,16 @@ fn try_embeddings(
     query: &str,
     docs: &[&str],
     cache: Option<&mut CacheStore>,
-) -> Result<Vec<f64>, String> {
+) -> Result<(Vec<f64>, usize, usize), String> {
     let Some(client_res) = LocalLlmClient::from_config(&config.local_llm) else {
-        return Err("local LLM unset".into());
+        return Err(
+            "embeddings unavailable (local LLM unset); staying on bm25 — set COMPENDIUM_LOCAL_LLM_URL or use llm_status"
+                .into(),
+        );
     };
-    let client = client_res.map_err(|e| e.to_string())?;
+    let client = client_res.map_err(|e| {
+        format!("embeddings unavailable ({e}); staying on bm25 — check llm_status / loopback URL")
+    })?;
     let model = config.local_llm.embedding_model_name().to_string();
 
     let mut inputs: Vec<String> = Vec::with_capacity(docs.len() + 1);
@@ -227,9 +240,15 @@ fn try_embeddings(
         inputs.push(d.chars().take(EMBED_MAX_CHARS).collect());
     }
 
+    let (hits_before, misses_before) = process_embed_cache_counters();
     let all_vecs = client
         .embed_with_cache(&model, &inputs, cache)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            format!("embeddings unavailable ({e}); staying on bm25 — check llm_status / loopback URL")
+        })?;
+    let (hits_after, misses_after) = process_embed_cache_counters();
+    let hits = hits_after.saturating_sub(hits_before);
+    let misses = misses_after.saturating_sub(misses_before);
     if all_vecs.len() != inputs.len() {
         return Err(format!(
             "embedding count mismatch: got {} want {}",
@@ -238,13 +257,17 @@ fn try_embeddings(
         ));
     }
     let q = &all_vecs[0];
-    Ok(all_vecs[1..]
-        .iter()
-        .map(|d| {
-            let c = cosine_similarity(q, d);
-            ((c + 1.0) / 2.0).clamp(0.0, 1.0)
-        })
-        .collect())
+    Ok((
+        all_vecs[1..]
+            .iter()
+            .map(|d| {
+                let c = cosine_similarity(q, d);
+                ((c + 1.0) / 2.0).clamp(0.0, 1.0)
+            })
+            .collect(),
+        hits,
+        misses,
+    ))
 }
 
 /// SLM / API scores for `candidate_indices`.
@@ -258,7 +281,10 @@ fn try_cross_encoder(
     prior_by_index: &[f64],
 ) -> Result<CrossEncoderOutcome, String> {
     let Some(client_res) = LocalLlmClient::from_config(&config.local_llm) else {
-        return Err("local LLM unset".into());
+        return Err(
+            "cross_encoder unavailable (local LLM unset); keeping BM25/hybrid scores — set COMPENDIUM_LOCAL_LLM_URL or use llm_status"
+                .into(),
+        );
     };
     let client = client_res.map_err(|e: LocalLlmError| e.to_string())?;
     let started = std::time::Instant::now();
@@ -394,14 +420,18 @@ pub fn rerank_with_cache(
     let mut embedding_scores: Option<Vec<f64>> = None;
     let mut final_scores = bm25_norm.clone();
     let mut had_hybrid = false;
+    let mut embed_cache_hits = None;
+    let mut embed_cache_misses = None;
 
     if options.use_embeddings && !items.is_empty() {
         match try_embeddings(config, query, &docs, cache) {
-            Ok(cos) => {
+            Ok((cos, hits, misses)) => {
                 embedding_scores = Some(cos.clone());
                 final_scores = blend_hybrid(&bm25_norm, &cos, alpha);
                 backend = "hybrid".into();
                 had_hybrid = true;
+                embed_cache_hits = Some(hits);
+                embed_cache_misses = Some(misses);
             }
             Err(e) => {
                 fallback_reason = Some(e);
@@ -558,6 +588,8 @@ pub fn rerank_with_cache(
         },
         cross_encoder_ms,
         cross_encoder_mode,
+        embed_cache_hits,
+        embed_cache_misses,
         metrics: TokenMetrics::new(original_tokens, result_tokens),
     }
 }

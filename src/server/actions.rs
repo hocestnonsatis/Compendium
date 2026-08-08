@@ -270,8 +270,12 @@ impl CompendiumServer {
             snap.cache_entries = cache.entries;
             snap.cache_bytes = cache.bytes;
             snap.cache_dir = cache.disk_dir;
+            let (eh, em) = crate::pipeline::local_llm::process_embed_cache_counters();
+            snap.embed_cache_hits = eh;
+            snap.embed_cache_misses = em;
             if reset {
                 state.stats.clear();
+                crate::pipeline::local_llm::reset_process_embed_cache_counters();
             }
             snap
         } else {

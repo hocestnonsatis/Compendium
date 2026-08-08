@@ -22,7 +22,13 @@ Local MCP without npm:
 COMPENDIUM_BINARY=./target/release/compendium node bin/run.js
 ```
 
-CI (GitHub Actions) runs `fmt`, `clippy -D warnings`, `cargo test`, and HTTP smoke on push/PR to `main`/`master`.
+CI (GitHub Actions) runs `fmt`, `clippy -D warnings`, `cargo test`, HTTP smoke, and heuristic **eval regression** on push/PR to `main`/`master`:
+
+```bash
+COMPENDIUM_EVAL_LATENCY_MS=5000 cargo test --test eval_regression
+```
+
+Local default latency soft budget is 2000ms (`COMPENDIUM_EVAL_LATENCY_MS`).
 
 Optional local SLM (Ollama / any OpenAI-compatible loopback server):
 

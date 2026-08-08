@@ -112,7 +112,7 @@ const ACTIONS: &[ActionAd] = &[
     ActionAd {
         id: "cache_store",
         one_liner: "Park bulky payload outside the prompt",
-        when_to_use: "Keep only a cache:// key; set COMPENDIUM_CACHE_DIR to survive restarts",
+        when_to_use: "Park one bulky blob under cache:// — not a multi-file zip (use pack)",
         fields: "text, cache?",
         uri: "cmp://skill/action/cache_store",
     },
@@ -190,7 +190,7 @@ const ACTIONS: &[ActionAd] = &[
     ActionAd {
         id: "pack",
         one_liner: "Zip text/files into a bounded archive (cache or base64)",
-        when_to_use: "Bundle a multi-file corpus for later unpack",
+        when_to_use: "Multi-file zip bundle (size-capped) — not a single cache_store key",
         fields: "text|items, pack?",
         uri: "cmp://skill/action/pack",
     },

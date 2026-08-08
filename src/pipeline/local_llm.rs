@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::net::IpAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
@@ -26,6 +27,23 @@ fn process_embed_cache() -> &'static Mutex<HashMap<String, Vec<f32>>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+static EMBED_CACHE_HITS: AtomicUsize = AtomicUsize::new(0);
+static EMBED_CACHE_MISSES: AtomicUsize = AtomicUsize::new(0);
+
+/// Process-wide embedding cache hit/miss counters (memory + session store lookups).
+pub fn process_embed_cache_counters() -> (usize, usize) {
+    (
+        EMBED_CACHE_HITS.load(Ordering::Relaxed),
+        EMBED_CACHE_MISSES.load(Ordering::Relaxed),
+    )
+}
+
+/// Reset process-wide embedding cache hit/miss counters.
+pub fn reset_process_embed_cache_counters() {
+    EMBED_CACHE_HITS.store(0, Ordering::Relaxed);
+    EMBED_CACHE_MISSES.store(0, Ordering::Relaxed);
+}
+
 /// Stable key for embedding cache entries.
 pub fn embedding_cache_key(model: &str, text: &str) -> String {
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -39,6 +57,7 @@ pub fn clear_process_embed_cache() {
     if let Ok(mut g) = process_embed_cache().lock() {
         g.clear();
     }
+    reset_process_embed_cache_counters();
 }
 
 /// Errors from a local LLM round-trip.
@@ -203,15 +222,18 @@ impl LocalLlmClient {
                 let key = embedding_cache_key(model, text);
                 if let Some(v) = mem.get(&key) {
                     out[i] = Some(v.clone());
+                    EMBED_CACHE_HITS.fetch_add(1, Ordering::Relaxed);
                     continue;
                 }
                 if let Some(store) = store.as_mut() {
                     if let Some(v) = store.get_embedding(&key) {
                         out[i] = Some(v);
+                        EMBED_CACHE_HITS.fetch_add(1, Ordering::Relaxed);
                         continue;
                     }
                 }
                 miss_indices.push(i);
+                EMBED_CACHE_MISSES.fetch_add(1, Ordering::Relaxed);
             }
         }
 

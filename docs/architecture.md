@@ -30,7 +30,7 @@ text / query / messages
  optional sanitize_input
         │
         ▼
-  action dispatch (server.rs)
+  action dispatch (server/ + actions.rs)
         │
         ├── heuristic pipeline (filter, compress, BM25, AFM, …)
         ├── rerank / brief → BM25 (+ optional embeddings = hybrid)
@@ -42,7 +42,7 @@ text / query / messages
 
 Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
 
-**Next:** B-roadmap (eval/perf → agent DX → local retrieval → maintain). See [REPORT.md](../REPORT.md) §7. Deferred: embedded LLM, foreign MCP proxy, cloud embeddings.
+**Next (C-roadmap):** deeper eval floors, agent DX playbooks (pack/install/http), retrieval telemetry polish, shared-cache ops docs. See [REPORT.md](../REPORT.md) §7. **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings.
 
 ## Quality gates
 
@@ -55,7 +55,13 @@ Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cach
 
 - `rerank` / `brief` default `use_embeddings: true` when a loopback LLM is configured; blend weight `COMPENDIUM_HYBRID_ALPHA` (default 0.55 BM25).
 - Opt-in CE: `COMPENDIUM_RERANK_CROSS_ENCODER` / `rerank.use_cross_encoder`; prefer `/v1/rerank`, else chat; partial pair failures keep prior scores (`cross_encoder_partial`).
-- Embedding vectors are cached in-process and, when session cache is used, under `cache://embed/…` keys (also persisted if `COMPENDIUM_CACHE_DIR` is set).
+- Embedding vectors are cached in-process and, when session cache is used, under `cache://embed/…` keys (also persisted if `COMPENDIUM_CACHE_DIR` is set). Hit/miss counters surface via `stats` / rerank telemetry.
+
+## Shared cache ops
+
+- Multiple MCP processes may share one `COMPENDIUM_CACHE_DIR`. There is **no** cross-process lock; TTL/eviction are best-effort on access and load.
+- Prefer a dedicated dir per host/user; do not assume exclusive writers.
+- Cursor/local development: after code changes, rebuild `target/release/compendium` and reload MCP so the live tool schema matches source (avoid stale npx/release binaries during development).
 
 ## Transports
 

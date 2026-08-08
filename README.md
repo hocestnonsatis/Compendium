@@ -235,6 +235,12 @@ Same `command` / `args` / `env` as Cursor, in Claude’s MCP config file.
 
 ### Local Cargo binary (developers)
 
+After code changes, rebuild and **reload MCP** so the live tool schema matches source (avoid stale `npx`/Release binaries during development):
+
+```bash
+cargo build --release --features real-tokens,http
+```
+
 ```json
 {
   "mcpServers": {
@@ -284,7 +290,7 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_ARCHIVE_MAX_UNCOMPRESSED` | `4194304` | Max total uncompressed bytes for pack/unpack |
 | `COMPENDIUM_ARCHIVE_MAX_FILES` | `50` | Max files per archive |
 | `COMPENDIUM_SKILL_TTL_MS` | `300000` | Soft TTL (ms) on skill `resources/read` responses |
-| `COMPENDIUM_CACHE_DIR` | _(unset)_ | Persist session cache (chunks/cache keys) across restarts; default size cap 64 MiB |
+| `COMPENDIUM_CACHE_DIR` | _(unset)_ | Persist session cache (chunks/cache keys) across restarts; default size cap 64 MiB. Multiple MCP processes may share one dir — **no** cross-process lock; TTL/eviction are best-effort. Prefer a dedicated dir per user/host. |
 | `COMPENDIUM_CACHE_MAX_BYTES` | _(unset / 64MiB with dir)_ | Soft cap on total cached payload bytes |
 | `RUST_LOG` | `compendium=info` | Logs on **stderr** only |
 

@@ -1,6 +1,6 @@
 Architectural Blueprint for Compendium: High-Performance Local Context Optimization via MCP
 
-> **Status (v0.5.0):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap (eval/DX/retrieval/maintain) shipped in 0.5.0; deferred items below remain out of scope.
+> **Status (v0.6.0):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap shipped in 0.5.0; **C-roadmap** (eval depth / DX / retrieval polish / ops) shipped in 0.6.0; deferred items below remain out of scope.
 
 1. Executive Summary: The Context Bloat Crisis and Local Mitigation Strategies
 
@@ -107,7 +107,7 @@ Compendium Security Mandates (as implemented / planned)
 
 | Item | Notes |
 |------|--------|
-| Single gateway + action enum | `src/server.rs` — one tool `compendium` |
+| Single gateway + action enum | `src/server/` (`mod.rs` + `actions.rs`) — one tool `compendium` |
 | Signal-to-call (<1000 chars bypass) | `pipeline/signal.rs`; `force` overrides |
 | AFM `prune_history` | `strategy=afm` |
 | Query-aware filter / BM25 + hybrid + opt-in CE rerank / brief | Lexical BM25; optional embeddings; opt-in CE (`/v1/rerank` or chat; partial resilience) |
@@ -125,15 +125,25 @@ Compendium Security Mandates (as implemented / planned)
 | Embedding vector cache | Process-local + session/disk `cache://embed/…` |
 | brief/server module split | `pipeline/brief/{walk,window,pack,synthesize}`, `server/actions` |
 
-### Next (prioritized) — B-roadmap
+### Shipped B-roadmap (0.5.0)
 
 | Phase | Focus | Status |
 |-------|--------|--------|
-| **B0** | Release catch-up | Docs/Trusted Publisher notes ready; tag/publish `v0.5.0` when maintainer approves |
-| **B1** | Eval + perf | Shipped in 0.5.0 (`testdata/`, `eval_regression`, CI) |
-| **B2** | Agent DX | Shipped in 0.5.0 (playbooks, catalog, brief Read next) |
-| **B3** | Local retrieval | Shipped in 0.5.0 (embed cache + hybrid/CE docs/tests) |
-| **B4** | Maintain | Shipped in 0.5.0 (`brief/` + `server/` split) |
+| **B0** | Release catch-up | Tagged/published `v0.5.0` (+ history tag `v0.4.0`); musl/win32-arm64 need Trusted Publisher on first OIDC |
+| **B1** | Eval + perf | Shipped (`testdata/`, `eval_regression`, CI) |
+| **B2** | Agent DX | Shipped (playbooks, catalog, brief Read next) |
+| **B3** | Local retrieval | Shipped (embed cache + hybrid/CE docs/tests) |
+| **B4** | Maintain | Shipped (`brief/` + `server/` split) |
+
+### Next (prioritized) — C-roadmap
+
+| Phase | Focus | Status |
+|-------|--------|--------|
+| **C0** | Doc truth | Done (architecture/REPORT/CONTRIBUTING/SECURITY) |
+| **C1** | Eval floors | Done (brief/AFM/sanitize/hybrid fallback gates) |
+| **C2** | Agent DX | Done (pack/install/http playbooks; catalog + stats-debug) |
+| **C3** | Retrieval polish | Done (embed-cache stats; CE partial mock) |
+| **C4** | Ops docs | Done (shared cache + binary freshness) |
 
 ### Deferred
 

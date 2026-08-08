@@ -390,3 +390,76 @@ async fn embed_cache_avoids_second_http_roundtrip() {
         .count();
     assert_eq!(embeds, 1, "second embed must use process cache");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rerank_cross_encoder_partial_keeps_prior_scores() {
+    use compendium::{rerank, RerankItem, RerankOptions};
+    use wiremock::matchers::body_string_contains;
+
+    let server = MockServer::start().await;
+
+    // /v1/rerank returns scores for only a subset of docs → partial path.
+    Mock::given(method("POST"))
+        .and(path("/v1/rerank"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [
+                { "index": 0, "relevance_score": 0.9 }
+                // missing index 1 → prior BM25 score kept
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    // Ensure chat fallback is not used when /rerank succeeds partially.
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .and(body_string_contains("Relevance score"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_chat_body("0.1")))
+        .expect(0)
+        .mount(&server)
+        .await;
+
+    let config = Config {
+        local_llm: LocalLlmConfig {
+            enabled: true,
+            base_url: Some(format!("{}/v1", server.uri())),
+            model: "mock-rerank".into(),
+            embedding_model: None,
+            api_key: None,
+            timeout_secs: 10,
+        },
+        ..Config::default()
+    };
+
+    let items = vec![
+        RerankItem {
+            id: Some("oauth".into()),
+            text: "oauth refresh token path implementation".into(),
+        },
+        RerankItem {
+            id: Some("css".into()),
+            text: "css layout sidebar widgets".into(),
+        },
+    ];
+
+    let result = tokio::task::spawn_blocking(move || {
+        rerank(
+            "oauth refresh token",
+            &items,
+            &RerankOptions {
+                top_k: Some(2),
+                use_embeddings: false,
+                use_cross_encoder: Some(true),
+                cross_encoder_top_n: Some(4),
+                ..Default::default()
+            },
+            &config,
+        )
+    })
+    .await
+    .expect("join");
+
+    assert_eq!(result.backend, "cross_encoder_partial");
+    assert_eq!(result.cross_encoder_mode.as_deref(), Some("rerank_api"));
+    assert!(result.hits.iter().any(|h| h.cross_encoder_score.is_some()));
+}
