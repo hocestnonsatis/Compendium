@@ -114,6 +114,8 @@ After publish:
 
 No `NPM_TOKEN` secret. CI uses [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC).
 
+**Residual (v0.5.0 / v0.6.0):** `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` are not yet on the registry. Until Trusted Publisher is configured (or one interactive `npm publish` creates the package), the Release workflow marks those two platforms as failed even though binaries are uploaded to GitHub Releases and the wrapper + other platforms publish successfully. Clients still obtain those binaries via the Releases download fallback in `bin/run.js`.
+
 ### 1. Dashboard (once per package)
 
 On each package’s **Settings → Trusted Publisher → GitHub Actions**:

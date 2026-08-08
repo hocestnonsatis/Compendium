@@ -129,7 +129,7 @@ Compendium Security Mandates (as implemented / planned)
 
 | Phase | Focus | Status |
 |-------|--------|--------|
-| **B0** | Release catch-up | Tagged/published `v0.5.0` (+ history tag `v0.4.0`); musl/win32-arm64 need Trusted Publisher on first OIDC |
+| **B0** | Release catch-up | Tagged/published `v0.5.0` (+ history tag `v0.4.0`); wrapper + core platforms on npm; GitHub Release assets include musl/win32-arm64. npm optionalDeps for `linux-x64-musl` / `win32-arm64` still need one Trusted Publisher / interactive create ([DISTRIBUTION.md](npm/DISTRIBUTION.md)); `npx` falls back to Releases |
 | **B1** | Eval + perf | Shipped (`testdata/`, `eval_regression`, CI) |
 | **B2** | Agent DX | Shipped (playbooks, catalog, brief Read next) |
 | **B3** | Local retrieval | Shipped (embed cache + hybrid/CE docs/tests) |
