@@ -15,8 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Release: cleared `residual_oidc` — `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64@0.6.0` are on npm; Trusted Publisher configured. Docs/REPORT/DISTRIBUTION updated.
 - MCP HTTP: `rmcp` 3.1.2; Streamable HTTP uses `NeverSessionManager` (sessionless; already `legacy_session_mode(false)`). Docs/playbook clarify dual-compat stdio vs `2026-07-28` sessionless HTTP; app cache ≠ MCP session.
-- Docs: mark C-roadmap as shipped in `docs/architecture.md` and REPORT §7; Next is residual npm Trusted Publisher ops only.
+- Docs: mark C-roadmap as shipped in `docs/architecture.md` and REPORT §7.
 - CI: `npm/scripts/check-versions.js` enforces Cargo/npm/platform version alignment plus `PLATFORMS` / optionalDeps / `release.yml` matrix sync (`asset` + `rustTarget`), publish-loop platforms independently of the matrix (regex fixed so `for platform in …; do` actually matches), and `residual_oidc` ⊆ known platforms (`npm run check-versions`; also gated in Release publish). Selftest also asserts live matrix assets/targets match `PLATFORMS` and that `runCheck()` passes.
 - Release: OIDC publish soft-fails documented residual platforms (`linux-x64-musl`, `win32-arm64`) so the job stays green while Trusted Publisher is pending; remove from `residual_oidc` once on npm.
 

@@ -149,7 +149,7 @@ Compendium Security Mandates (as implemented / planned)
 
 | Item | Notes |
 |------|--------|
-| npm Trusted Publisher for `linux-x64-musl` / `win32-arm64` | OptionalDeps still missing on registry; Release soft-fails those OIDC publishes (`residual_oidc`); Releases fallback works — see [DISTRIBUTION.md](npm/DISTRIBUTION.md). `npm run check-residual-npm` fails CI if soft-fail is stale (package exists), incomplete (missing package not listed), a still-missing residual lacks its GitHub Release asset for `v${version}`, a non-residual package lacks `versions[version]` after that tag exists, or main wrapper `compendium-mcp@${version}` is missing after that tag. |
+| Keep npm platform packages + OIDC green | All seven platforms on registry (`0.6.0`); `residual_oidc` empty. `npm run check-npm-gates` enforces alignment + residual probe. See [DISTRIBUTION.md](npm/DISTRIBUTION.md). |
 | Keep eval floors green | `cargo test --test eval_regression`; avoid inventing a D product roadmap until needed |
 
 ### Deferred

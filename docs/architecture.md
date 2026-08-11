@@ -42,7 +42,7 @@ text / query / messages
 
 Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
 
-**Shipped through 0.6.0 (C-roadmap):** eval floors, agent DX playbooks (pack/install/http), retrieval telemetry, shared-cache ops docs. See [REPORT.md](../REPORT.md) §7. **Residual ops:** npm Trusted Publisher for `linux-x64-musl` / `win32-arm64` ([DISTRIBUTION.md](../npm/DISTRIBUTION.md)). **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings.
+**Shipped through 0.6.0 (C-roadmap):** eval floors, agent DX playbooks (pack/install/http), retrieval telemetry, shared-cache ops docs. See [REPORT.md](../REPORT.md) §7. **npm:** all platform packages on registry (`residual_oidc` empty). **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings.
 
 ## Quality gates
 

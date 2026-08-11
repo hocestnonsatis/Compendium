@@ -251,10 +251,9 @@ jobs:
           npm --version
           # setup-node injects a placeholder NODE_AUTH_TOKEN; clear it so OIDC wins.
           unset NODE_AUTH_TOKEN || true
-          # Until Trusted Publisher / first interactive create: soft-fail these only.
-          # Binaries still ship on GitHub Releases; wrapper falls back via bin/run.js.
-          # Remove a platform from this list once its package exists on the registry.
-          residual_oidc="linux-x64-musl win32-arm64"
+          # Soft-fail allowlist for platforms whose npm package is not yet on the registry.
+          # Empty: all platforms hard-fail on OIDC publish errors (musl + win32-arm64 published 0.6.0).
+          residual_oidc=""
           failed=0
           residual_warned=0
           for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 linux-x64-musl win32-x64 win32-arm64; do
