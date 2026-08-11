@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI: `npm run check-residual-npm` — probes the registry for `residual_oidc` soft-fail platforms and fails when a package already exists (clear it from `release.yml` so soft-fail cannot linger after Trusted Publisher lands). Also fails when a publish-loop package is still missing on npm but absent from `residual_oidc` (otherwise the next Release hard-fails OIDC). For non-residual packages that exist on npm, also requires `versions[version]` once tag `v${version}` is published (so optionalDeps cannot pin an unpublished version after a release); soft-skips that version gate when the tag is unpublished. Also requires main wrapper `compendium-mcp@${version}` for the same tag (`npx -y compendium-mcp`); soft-skips when the tag is unpublished. For still-missing residuals, also HEAD-probes GitHub Release assets for `v${version}` so the `bin/run.js` download fallback cannot silently rot; soft-skips when the tag is unpublished or GitHub is unreachable. Wired in PR CI + Release publish.
+- CI: `npm run check-versions-selftest` — fixture tests for release.yml parsers (publish-loop `for platform in …; do`, matrix specs, `residual_oidc`) so a silent regex regression cannot hide publish omissions again.
+- DX: `npm run check-npm-gates` — runs selftest + alignment + residual probe in CI order; PR CI and Release publish both call this single script.
+
+### Changed
+
+- MCP HTTP: `rmcp` 3.1.2; Streamable HTTP uses `NeverSessionManager` (sessionless; already `legacy_session_mode(false)`). Docs/playbook clarify dual-compat stdio vs `2026-07-28` sessionless HTTP; app cache ≠ MCP session.
+- Docs: mark C-roadmap as shipped in `docs/architecture.md` and REPORT §7; Next is residual npm Trusted Publisher ops only.
+- CI: `npm/scripts/check-versions.js` enforces Cargo/npm/platform version alignment plus `PLATFORMS` / optionalDeps / `release.yml` matrix sync (`asset` + `rustTarget`), publish-loop platforms independently of the matrix (regex fixed so `for platform in …; do` actually matches), and `residual_oidc` ⊆ known platforms (`npm run check-versions`; also gated in Release publish). Selftest also asserts live matrix assets/targets match `PLATFORMS` and that `runCheck()` passes.
+- Release: OIDC publish soft-fails documented residual platforms (`linux-x64-musl`, `win32-arm64`) so the job stays green while Trusted Publisher is pending; remove from `residual_oidc` once on npm.
+
 ## [0.6.0] - 2026-08-08
 
 ### Added

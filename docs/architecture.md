@@ -42,7 +42,7 @@ text / query / messages
 
 Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
 
-**Next (C-roadmap):** deeper eval floors, agent DX playbooks (pack/install/http), retrieval telemetry polish, shared-cache ops docs. See [REPORT.md](../REPORT.md) §7. **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings.
+**Shipped through 0.6.0 (C-roadmap):** eval floors, agent DX playbooks (pack/install/http), retrieval telemetry, shared-cache ops docs. See [REPORT.md](../REPORT.md) §7. **Residual ops:** npm Trusted Publisher for `linux-x64-musl` / `win32-arm64` ([DISTRIBUTION.md](../npm/DISTRIBUTION.md)). **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings.
 
 ## Quality gates
 
@@ -67,8 +67,10 @@ Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cach
 
 | Mode | Binary | Notes |
 |------|--------|-------|
-| stdio | default | Cursor / Claude Desktop |
-| HTTP/SSE | `--features http` → `compendium http [BIND]` | `/mcp` on loopback by default |
+| stdio | default | Cursor / Claude Desktop — dual-compat (legacy initialize or modern connect/`discover`) |
+| Streamable HTTP | `--features http` → `compendium http [BIND]` | `/mcp` on loopback; **sessionless** (`2026-07-28` + older Streamable HTTP without sticky sessions); JSON preferred, SSE fallback |
+
+App cache (`COMPENDIUM_CACHE_DIR`, `cache://` / `cmp://` keys) is **not** an MCP transport session. Prefer stdio for IDE hosts; use HTTP when the client speaks Streamable HTTP. See playbook `http-transport`.
 
 ## Security posture
 

@@ -20,7 +20,7 @@ fn args_object(value: Value) -> rmcp::model::JsonObject {
 
 async fn spawn_http_server() -> (String, CancellationToken) {
     use rmcp::transport::streamable_http_server::{
-        session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+        session::never::NeverSessionManager, StreamableHttpServerConfig, StreamableHttpService,
     };
 
     let ct = CancellationToken::new();
@@ -32,10 +32,10 @@ async fn spawn_http_server() -> (String, CancellationToken) {
         .with_allowed_hosts(vec!["127.0.0.1".to_string(), "localhost".to_string()]);
 
     let config = Config::default();
-    let service: StreamableHttpService<CompendiumServer, LocalSessionManager> =
+    let service: StreamableHttpService<CompendiumServer, NeverSessionManager> =
         StreamableHttpService::new(
             move || Ok(CompendiumServer::new(config.clone())),
-            Arc::new(LocalSessionManager::default()),
+            Arc::new(NeverSessionManager::default()),
             http_config,
         );
 

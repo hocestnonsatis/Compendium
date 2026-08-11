@@ -90,10 +90,10 @@ Binary packaging details for maintainers: [npm/DISTRIBUTION.md](npm/DISTRIBUTION
 
 | Mode | Command | Notes |
 |------|---------|-------|
-| **stdio** (default) | `compendium` / `compendium stdio` | Cursor / Claude Desktop |
-| **Streamable HTTP/SSE** | `compendium http [BIND]` | Requires `--features http`. Endpoint: `http://{bind}/mcp` |
+| **stdio** (default) | `compendium` / `compendium stdio` | Cursor / Claude Desktop — dual-compat (legacy initialize or modern connect) |
+| **Streamable HTTP** | `compendium http [BIND]` | Requires `--features http`. Endpoint: `http://{bind}/mcp`. Sessionless (`2026-07-28`); JSON preferred, SSE fallback |
 
-Default HTTP bind: `127.0.0.1:8788` (override with arg or `COMPENDIUM_HTTP_BIND`).
+Default HTTP bind: `127.0.0.1:8788` (override with arg or `COMPENDIUM_HTTP_BIND`). App cache (`COMPENDIUM_CACHE_DIR`) is not an MCP session — set it for multi-request HTTP. See playbook `http-transport`.
 
 ## Tools
 
@@ -169,7 +169,7 @@ src/
   brand.rs             # SEP-973 icons for serverInfo + tool
   config.rs            # COMPENDIUM_* env config
   server/              # MCP tool + resources + action handlers (rmcp)
-  http.rs              # Streamable HTTP/SSE (feature = "http")
+  http.rs              # Streamable HTTP, sessionless (feature = "http")
   pipeline/
     brief/             # workspace brief (walk / window / pack / synthesize)
     tokens.rs          # heuristic or tiktoken BPE (feature = "real-tokens")
@@ -192,7 +192,7 @@ tests/
   e2e_smoke.rs         # spawns binary, MCP handshake, tools + resources
   eval_regression.rs   # B1 heuristic quality + latency smoke
 CHANGELOG.md
-REPORT.md              # design essay + Shipped/Next/Deferred roadmap
+REPORT.md              # design essay + Shipped (A–C) / Next ops / Deferred roadmap
 ```
 
 ## Build
@@ -392,7 +392,7 @@ cargo test --test e2e_smoke
 cargo run --features http -- http 127.0.0.1:8788
 ```
 
-`e2e_smoke` spawns `CARGO_BIN_EXE_compendium`, completes the MCP initialize handshake over stdio, lists tools, then calls gateway actions. `http_smoke` (requires `--features http`) exercises streamable HTTP in-process.
+`e2e_smoke` spawns `CARGO_BIN_EXE_compendium`, completes MCP connect (legacy initialize) over stdio, lists tools, then calls gateway actions. `http_smoke` (requires `--features http`) exercises sessionless streamable HTTP in-process.
 
 ## Design notes
 

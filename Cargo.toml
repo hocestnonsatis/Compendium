@@ -37,7 +37,7 @@ ignore = "0.4"
 regex = "1.13.1"
 # OpenAI-compatible local SLM client (Ollama / Lemonade / llama.cpp server).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
-rmcp = { version = "3.1.0", features = ["server", "transport-io", "macros", "schemars"] }
+rmcp = { version = "3.1.2", features = ["server", "transport-io", "macros", "schemars"] }
 schemars = "1.2.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -52,7 +52,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 # Client + child-process transport for E2E smoke tests (features merge with [dependencies]).
-rmcp = { version = "3.1.0", features = [
+rmcp = { version = "3.1.2", features = [
     "client",
     "transport-child-process",
     "transport-streamable-http-client-reqwest",

@@ -1,11 +1,15 @@
-//! Streamable HTTP / SSE transport (MCP Streamable HTTP via rmcp + axum).
+//! Streamable HTTP transport (MCP Streamable HTTP via rmcp + axum).
+//!
+//! Configured sessionless (`NeverSessionManager`, `legacy_session_mode(false)`,
+//! JSON responses preferred) for MCP `2026-07-28` and older clients that still
+//! speak Streamable HTTP without sticky sessions.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    session::never::NeverSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -36,10 +40,10 @@ pub async fn serve_http(config: Config, bind: &str) -> Result<()> {
         ]);
 
     let pipeline_config = config.clone();
-    let service: StreamableHttpService<CompendiumServer, LocalSessionManager> =
+    let service: StreamableHttpService<CompendiumServer, NeverSessionManager> =
         StreamableHttpService::new(
             move || Ok(CompendiumServer::new(pipeline_config.clone())),
-            Arc::new(LocalSessionManager::default()),
+            Arc::new(NeverSessionManager::default()),
             http_config,
         );
 
