@@ -635,8 +635,11 @@ async function runResidualNpmCheck(opts = {}) {
   // Cargo/package.json version once the GitHub release tag exists. Also gate
   // the main wrapper (npx -y compendium-mcp). Custom fetchStatus without
   // fetchVersionStatus skips (unit tests stay focused).
+  // Release *pre-publish* sets COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE=1 (or
+  // opts.skipVersionCheck) — the tag exists before npm publish runs.
   const doVersionCheck =
     !opts.skipVersionCheck &&
+    process.env.COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE !== '1' &&
     (opts.fetchVersionStatus != null || opts.fetchStatus == null);
   /** @type {{ status: string, detail?: string } | null} */
   let cachedTagStatus = null;

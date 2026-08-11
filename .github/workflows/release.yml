@@ -241,7 +241,11 @@ jobs:
           VERSION: ${{ needs.meta.outputs.version }}
 
       - name: npm version / platform gates
-        run: npm run check-npm-gates
+        run: |
+          npm run check-versions-selftest
+          npm run check-versions
+          # Tag exists before OIDC publish; version-presence gates are for PR CI post-release.
+          COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE=1 npm run check-residual-npm
 
       - name: Publish platform packages (OIDC)
         id: publish_platforms

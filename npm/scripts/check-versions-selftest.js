@@ -545,7 +545,51 @@ async function runAsyncChecks() {
 
   {
     const name =
+      'runResidualNpmCheck soft-skips version gate when COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE=1';
+    const exit = process.exit;
+    const prev = process.env.COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE;
+    let exited = null;
+    process.exit = (c) => {
+      exited = c ?? 0;
+      throw new Error(`exit ${exited}`);
+    };
+    process.env.COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE = '1';
+    try {
+      await runResidualNpmCheck({
+        skipReleaseAssets: true,
+        residualKeys: [],
+        publishKeys: ['linux-x64'],
+        version: '0.6.1',
+        fetchStatus: async () => ({ status: 'exists' }),
+        fetchVersionStatus: async () => ({ status: 'missing' }),
+        fetchReleaseTag: async () => ({ status: 'exists' }),
+      });
+      if (exited === null) {
+        console.log(`  ok  ${name}`);
+      } else {
+        failed += 1;
+        console.error(`  FAIL ${name}`);
+        console.error(`       unexpected exit ${exited}`);
+      }
+    } catch (err) {
+      failed += 1;
+      console.error(`  FAIL ${name}`);
+      console.error(`       ${err.message}`);
+    } finally {
+      process.exit = exit;
+      if (prev === undefined) {
+        delete process.env.COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE;
+      } else {
+        process.env.COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE = prev;
+      }
+    }
+  }
+
+  {
+    const name =
       'runResidualNpmCheck fails when optionalDeps version missing after tag';
+    // Ensure release pre-publish env cannot leak into this assertion.
+    delete process.env.COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE;
     const exit = process.exit;
     let exited = null;
     process.exit = (c) => {
