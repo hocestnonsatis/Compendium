@@ -1,6 +1,6 @@
 Architectural Blueprint for Compendium: High-Performance Local Context Optimization via MCP
 
-> **Status (v0.6.0):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap shipped in 0.5.0; **C-roadmap** (eval depth / DX / retrieval polish / ops) shipped in 0.6.0; deferred items below remain out of scope.
+> **Status (v0.6.1):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap shipped in 0.5.0; **C-roadmap** (eval depth / DX / retrieval polish / ops) shipped in 0.6.0; **0.6.1** clears residual npm platforms + sessionless HTTP polish; deferred items below remain out of scope.
 
 1. Executive Summary: The Context Bloat Crisis and Local Mitigation Strategies
 
@@ -149,7 +149,7 @@ Compendium Security Mandates (as implemented / planned)
 
 | Item | Notes |
 |------|--------|
-| Keep npm platform packages + OIDC green | All seven platforms on registry (`0.6.0`); `residual_oidc` empty. `npm run check-npm-gates` enforces alignment + residual probe. See [DISTRIBUTION.md](npm/DISTRIBUTION.md). |
+| Keep npm platform packages + OIDC green | All seven platforms on registry; `residual_oidc` empty. `npm run check-npm-gates` enforces alignment + residual probe. See [DISTRIBUTION.md](npm/DISTRIBUTION.md). |
 | Keep eval floors green | `cargo test --test eval_regression`; avoid inventing a D product roadmap until needed |
 
 ### Deferred

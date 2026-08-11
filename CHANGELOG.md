@@ -7,19 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-12
+
 ### Added
 
-- CI: `npm run check-residual-npm` — probes the registry for `residual_oidc` soft-fail platforms and fails when a package already exists (clear it from `release.yml` so soft-fail cannot linger after Trusted Publisher lands). Also fails when a publish-loop package is still missing on npm but absent from `residual_oidc` (otherwise the next Release hard-fails OIDC). For non-residual packages that exist on npm, also requires `versions[version]` once tag `v${version}` is published (so optionalDeps cannot pin an unpublished version after a release); soft-skips that version gate when the tag is unpublished. Also requires main wrapper `compendium-mcp@${version}` for the same tag (`npx -y compendium-mcp`); soft-skips when the tag is unpublished. For still-missing residuals, also HEAD-probes GitHub Release assets for `v${version}` so the `bin/run.js` download fallback cannot silently rot; soft-skips when the tag is unpublished or GitHub is unreachable. Wired in PR CI + Release publish.
-- CI: `npm run check-versions-selftest` — fixture tests for release.yml parsers (publish-loop `for platform in …; do`, matrix specs, `residual_oidc`) so a silent regex regression cannot hide publish omissions again.
-- DX: `npm run check-npm-gates` — runs selftest + alignment + residual probe in CI order; PR CI and Release publish both call this single script.
+- CI: `npm run check-residual-npm` — probes `residual_oidc`, optionalDeps/`compendium-mcp@${version}` post-tag presence, and GitHub Release assets for still-missing residuals.
+- CI: `npm run check-versions-selftest` — fixture tests for release.yml parsers (publish-loop, matrix, `residual_oidc`).
+- DX: `npm run check-npm-gates` — selftest + alignment + residual probe (PR CI + Release).
 
 ### Changed
 
-- Release: cleared `residual_oidc` — `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64@0.6.0` are on npm; Trusted Publisher configured. Docs/REPORT/DISTRIBUTION updated.
-- MCP HTTP: `rmcp` 3.1.2; Streamable HTTP uses `NeverSessionManager` (sessionless; already `legacy_session_mode(false)`). Docs/playbook clarify dual-compat stdio vs `2026-07-28` sessionless HTTP; app cache ≠ MCP session.
-- Docs: mark C-roadmap as shipped in `docs/architecture.md` and REPORT §7.
-- CI: `npm/scripts/check-versions.js` enforces Cargo/npm/platform version alignment plus `PLATFORMS` / optionalDeps / `release.yml` matrix sync (`asset` + `rustTarget`), publish-loop platforms independently of the matrix (regex fixed so `for platform in …; do` actually matches), and `residual_oidc` ⊆ known platforms (`npm run check-versions`; also gated in Release publish). Selftest also asserts live matrix assets/targets match `PLATFORMS` and that `runCheck()` passes.
-- Release: OIDC publish soft-fails documented residual platforms (`linux-x64-musl`, `win32-arm64`) so the job stays green while Trusted Publisher is pending; remove from `residual_oidc` once on npm.
+- MCP HTTP: `rmcp` 3.1.2; Streamable HTTP uses `NeverSessionManager` (sessionless). Docs/playbook clarify dual-compat stdio vs `2026-07-28` sessionless HTTP; app cache ≠ MCP session.
+- npm: `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` published; Trusted Publisher configured; `residual_oidc` cleared (all seven platforms hard-fail on OIDC errors).
+- Docs: C-roadmap marked shipped; REPORT/DISTRIBUTION/CONTRIBUTING aligned with full platform coverage.
+- CI: `check-versions.js` enforces Cargo/npm/platform alignment plus `PLATFORMS` / optionalDeps / `release.yml` matrix and publish-loop sync.
 
 ## [0.6.0] - 2026-08-08
 
