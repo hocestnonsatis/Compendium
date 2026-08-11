@@ -135,7 +135,7 @@ Compendium Security Mandates (as implemented / planned)
 | **B3** | Local retrieval | Shipped (embed cache + hybrid/CE docs/tests) |
 | **B4** | Maintain | Shipped (`brief/` + `server/` split) |
 
-### Next (prioritized) — C-roadmap
+### Shipped C-roadmap (0.6.0)
 
 | Phase | Focus | Status |
 |-------|--------|--------|
@@ -144,6 +144,13 @@ Compendium Security Mandates (as implemented / planned)
 | **C2** | Agent DX | Done (pack/install/http playbooks; catalog + stats-debug) |
 | **C3** | Retrieval polish | Done (embed-cache stats; CE partial mock) |
 | **C4** | Ops docs | Done (shared cache + binary freshness) |
+
+### Next (ops / maintenance)
+
+| Item | Notes |
+|------|--------|
+| npm Trusted Publisher for `linux-x64-musl` / `win32-arm64` | OptionalDeps still missing on registry; Release soft-fails those OIDC publishes (`residual_oidc`); Releases fallback works — see [DISTRIBUTION.md](npm/DISTRIBUTION.md). `npm run check-residual-npm` fails CI if soft-fail is stale (package exists), incomplete (missing package not listed), a still-missing residual lacks its GitHub Release asset for `v${version}`, a non-residual package lacks `versions[version]` after that tag exists, or main wrapper `compendium-mcp@${version}` is missing after that tag. |
+| Keep eval floors green | `cargo test --test eval_regression`; avoid inventing a D product roadmap until needed |
 
 ### Deferred
 

@@ -192,7 +192,9 @@ fn sanitize_redacts_secret_patterns() {
         a.findings
     );
     assert!(
-        a.findings.iter().any(|f| f.kind == "secret" || f.kind == "ipi" || f.kind == "poison"),
+        a.findings
+            .iter()
+            .any(|f| f.kind == "secret" || f.kind == "ipi" || f.kind == "poison"),
         "expected sanitize findings; got {:?}",
         a.findings
     );

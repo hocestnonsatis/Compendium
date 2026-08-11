@@ -34,7 +34,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepack": "node npm/scripts/check-wrapper.js",
+    "check-npm-gates": "node npm/scripts/check-versions-selftest.js && node npm/scripts/check-versions.js && node npm/scripts/check-residual-npm.js",
+    "check-versions": "node npm/scripts/check-versions.js",
+    "check-versions-selftest": "node npm/scripts/check-versions-selftest.js",
+    "check-residual-npm": "node npm/scripts/check-residual-npm.js",
+    "prepack": "node npm/scripts/check-wrapper.js && node npm/scripts/check-versions.js",
     "prepare": "node npm/scripts/link-bins.js"
   },
   "optionalDependencies": {

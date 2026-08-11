@@ -5,9 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::Config;
 use crate::pipeline::bm25::score_documents;
 use crate::pipeline::cache::CacheStore;
-use crate::pipeline::local_llm::{
-    process_embed_cache_counters, LocalLlmClient, LocalLlmError,
-};
+use crate::pipeline::local_llm::{process_embed_cache_counters, LocalLlmClient, LocalLlmError};
 use crate::pipeline::tokens::estimate_tokens;
 use crate::pipeline::TokenMetrics;
 
@@ -244,7 +242,9 @@ fn try_embeddings(
     let all_vecs = client
         .embed_with_cache(&model, &inputs, cache)
         .map_err(|e| {
-            format!("embeddings unavailable ({e}); staying on bm25 — check llm_status / loopback URL")
+            format!(
+                "embeddings unavailable ({e}); staying on bm25 — check llm_status / loopback URL"
+            )
         })?;
     let (hits_after, misses_after) = process_embed_cache_counters();
     let hits = hits_after.saturating_sub(hits_before);

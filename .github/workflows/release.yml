@@ -240,6 +240,9 @@ jobs:
         env:
           VERSION: ${{ needs.meta.outputs.version }}
 
+      - name: npm version / platform gates
+        run: npm run check-npm-gates
+
       - name: Publish platform packages (OIDC)
         id: publish_platforms
         shell: bash
@@ -248,7 +251,12 @@ jobs:
           npm --version
           # setup-node injects a placeholder NODE_AUTH_TOKEN; clear it so OIDC wins.
           unset NODE_AUTH_TOKEN || true
+          # Until Trusted Publisher / first interactive create: soft-fail these only.
+          # Binaries still ship on GitHub Releases; wrapper falls back via bin/run.js.
+          # Remove a platform from this list once its package exists on the registry.
+          residual_oidc="linux-x64-musl win32-arm64"
           failed=0
+          residual_warned=0
           for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 linux-x64-musl win32-x64 win32-arm64; do
             dest="npm/platforms/$platform"
             if [[ -e "$dest/bin/compendium" || -e "$dest/bin/compendium.exe" ]]; then
@@ -259,8 +267,11 @@ jobs:
                 echo "$out"
                 if echo "$out" | grep -qiE 'cannot publish over existing|EPUBLISHCONFLICT|previously published'; then
                   echo "Already published — treating as success"
+                elif [[ " $residual_oidc " == *" $platform "* ]]; then
+                  echo "::warning::Residual OIDC soft-fail for $platform (Trusted Publisher / interactive create still needed; Releases fallback OK). Remove from residual_oidc in release.yml once on npm."
+                  residual_warned=1
                 else
-                  echo "::error::Failed to publish $platform (brand-new package names need one interactive publish + Trusted Publisher before OIDC works)"
+                  echo "::error::Failed to publish $platform"
                   failed=1
                 fi
               fi
@@ -269,6 +280,7 @@ jobs:
             fi
           done
           echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          echo "residual_warned=$residual_warned" >> "$GITHUB_OUTPUT"
         env:
           NODE_AUTH_TOKEN: ""
 

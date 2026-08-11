@@ -28,6 +28,9 @@ jobs:
       - name: rustfmt
         run: cargo fmt --all -- --check
 
+      - name: npm version / platform gates
+        run: npm run check-npm-gates
+
       - name: clippy (default)
         run: cargo clippy --all-targets -- -D warnings
 

@@ -114,7 +114,7 @@ After publish:
 
 No `NPM_TOKEN` secret. CI uses [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC).
 
-**Residual (v0.5.0 / v0.6.0):** `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` are not yet on the registry. Until Trusted Publisher is configured (or one interactive `npm publish` creates the package), the Release workflow marks those two platforms as failed even though binaries are uploaded to GitHub Releases and the wrapper + other platforms publish successfully. Clients still obtain those binaries via the Releases download fallback in `bin/run.js`.
+**Residual (v0.5.0 / v0.6.0):** `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` are not yet on the registry. Until Trusted Publisher is configured (or one interactive `npm publish` creates the package), the Release workflow **soft-fails** those two platforms (`residual_oidc` allowlist in `release.yml`) with a warning — binaries still upload to GitHub Releases and the wrapper + other platforms publish successfully. Clients obtain the residual binaries via the Releases download fallback in `bin/run.js`. `npm run check-versions` rejects unknown keys in `residual_oidc`, keeps `release.yml` matrix `asset`/`target` aligned with `npm/lib/platform.js` `PLATFORMS`, and requires the publish `for platform in …` list to match `npm/platforms/` independently of the build matrix so a publish-loop omission cannot hide behind a union. `npm run check-versions-selftest` (CI) locks the publish-loop / matrix / `residual_oidc` parsers against silent regex regressions. `npm run check-residual-npm` (CI + Release) probes the registry and **fails** when a residual package already exists (clear soft-fail) **or** when a publish-loop package is still missing but absent from `residual_oidc` (would hard-fail OIDC on the next Release). For non-residual packages already on npm it also requires `versions[version]` once tag `v${version}` exists (soft-skip pre-tag) so optionalDeps cannot pin an unpublished version after a release. The same post-tag gate applies to the main wrapper `compendium-mcp@${version}` (`npx -y compendium-mcp`). For still-missing residuals it also HEAD-probes GitHub Release assets for `v${version}` and **fails** if the tag exists but an asset is absent (wrapper fallback broken); soft-skips when the tag is not published yet.
 
 ### 1. Dashboard (once per package)
 
@@ -138,6 +138,13 @@ Packages to configure (same values on each):
 - https://www.npmjs.com/package/compendium-mcp-linux-x64-musl/access *(brand-new: create Trusted Publisher before first OIDC publish, or one interactive publish first)*
 - https://www.npmjs.com/package/compendium-mcp-win32-x64/access
 - https://www.npmjs.com/package/compendium-mcp-win32-arm64/access *(brand-new: same as musl)*
+
+**Residual human checklist (blocker):** for the two brand-new packages only (`linux-x64-musl`, `win32-arm64`):
+
+1. Open each `…/access` link above (or npm → package → Settings → Trusted Publisher). If the package does not exist yet, use npm’s Trusted Publisher UI to create the package binding, **or** run one interactive `npm publish` from `npm/platforms/<platform>/` to create it.
+2. Set the GitHub Actions publisher fields to the table above (`hocestnonsatis` / `Compendium` / `release.yml`).
+3. Re-run Release (`workflow_dispatch` with tag `v0.6.0` or the next release) and confirm OIDC publish succeeds for those platforms (no soft-fail warning).
+4. Remove `linux-x64-musl` and `win32-arm64` from `residual_oidc` in `.github/workflows/release.yml`. `npm run check-residual-npm` fails if you forget after the packages exist.
 
 After OIDC works, optionally set **Publishing access** → “Require 2FA and disallow tokens”.
 

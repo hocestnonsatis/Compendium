@@ -26,9 +26,12 @@ CI (GitHub Actions) runs `fmt`, `clippy -D warnings`, `cargo test`, HTTP smoke, 
 
 ```bash
 COMPENDIUM_EVAL_LATENCY_MS=5000 cargo test --test eval_regression
+npm run check-npm-gates
 ```
 
 Local default latency soft budget is 2000ms (`COMPENDIUM_EVAL_LATENCY_MS`).
+
+Before touching release/platform wiring, run `npm run check-npm-gates` (selftest → alignment → residual registry + Releases-fallback probe — same order as PR CI and Release publish).
 
 Optional local SLM (Ollama / any OpenAI-compatible loopback server):
 
@@ -52,7 +55,7 @@ npm packaging notes: [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md).
 1. Describe **why** the change exists (not only what files moved).
 2. Note how you tested (`cargo test`, e2e smoke, manual MCP call).
 3. Update `README.md` only when user-facing behavior changes.
-4. For releases: versions stay aligned across `Cargo.toml`, root `package.json`, and `npm/platforms/*/package.json`. CI publishes via Trusted Publishing (OIDC) on GitHub Release tags. Before tagging `v0.4.0+`, confirm npm Trusted Publisher entries exist for **every** platform package including `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` (workflow `release.yml`).
+4. For releases: versions and platform keys stay aligned across `Cargo.toml`, root `package.json` / `optionalDependencies`, `npm/platforms/*/package.json`, `npm/lib/platform.js` `PLATFORMS` (including `asset` / `rustTarget`), and `release.yml` (matrix include keys, publish `for platform in …` loop, and `residual_oidc` soft-fail keys ⊆ known platforms — matrix and publish loop are checked independently). Run `npm run check-versions`, `npm run check-versions-selftest`, and `npm run check-residual-npm` (all enforced in PR CI; alignment + residual probe also gated before Release npm publish). Residual ops: configure npm Trusted Publisher for `compendium-mcp-linux-x64-musl` and `compendium-mcp-win32-arm64` if not yet on the registry — see [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md) and `release.yml`. Once a residual package appears on npm, clear it from `residual_oidc`; conversely, keep every still-missing publish platform listed in `residual_oidc` (`check-residual-npm` fails either way). While residuals remain npm-missing, `check-residual-npm` also verifies the matching GitHub Release assets for `v${version}` exist (soft-skip if the tag is unpublished). For non-residual platforms already on npm, it also requires `versions[version]` once tag `v${version}` exists (soft-skip pre-tag) so optionalDeps cannot pin a missing release. The same post-tag gate applies to the main wrapper `compendium-mcp@${version}` so `npx -y compendium-mcp` cannot resolve a missing release.
 
 ## Issues
 
