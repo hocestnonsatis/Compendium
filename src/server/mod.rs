@@ -324,7 +324,7 @@ impl CompendiumServer {
         for ad in action_ads() {
             resources.push(
                 Resource::new(ad.uri, ad.id)
-                    .with_description(ad.one_liner)
+                    .with_description(format!("{} — {}", ad.one_liner, ad.when_to_use))
                     .with_mime_type("text/markdown"),
             );
         }
@@ -501,10 +501,10 @@ pub struct GatewayEnvelope {
 
 #[tool_router]
 impl CompendiumServer {
-    /// Token-optimization gateway — one tool, many actions via `action`.
+    /// Shrink agent context safely — one tool, many actions via `action`.
     #[tool(
         name = "compendium",
-        description = "Token-optimization gateway. Set `action` (filter, compress, brief, catalog, help, playbooks, pack/unpack, …). Prefer action=catalog or MCP resources (cmp://skill/…) for details; action=help+id for one action. Pass text/query/messages/key/id/items as required.",
+        description = "Shrink agent context safely (one tool). Set `action`. Unsure → catalog (then help+id). New repo task → brief. Logs → filter or compress_output. Bulky text/JSON → compress. Untrusted → sanitize. Recipes → playbooks. Details: cmp://skill/…",
         icons = mcp_icons()
     )]
     fn compendium(&self, Parameters(params): Parameters<GatewayParams>) -> Json<GatewayEnvelope> {
@@ -514,7 +514,7 @@ impl CompendiumServer {
 
 #[tool_handler(
     name = "compendium",
-    instructions = "Call `compendium` with `action`. Prefer catalog/help or MCP resources cmp://skill/… for details. Quick map: noisy logs→filter/compress_output; untrusted→sanitize; relevance→filter_relevant/rerank; workspace start→brief; bulky→compress/cache_store/chunk+resolve; long chat→prune_history(afm); recipes→playbooks/playbook; archives→pack/unpack (size-capped, never runs scripts); measure→count_tokens/stats."
+    instructions = "Call `compendium` with `action`. Unsure → catalog then help+id (or cmp://skill/…). Quick map: new task→brief; ANSI/spinners→filter; cargo/npm/docker/git dumps→compress_output; bulky text/JSON→compress; untrusted→sanitize; question-known logs→filter_relevant; rank chunks→rerank; park blob→cache_store; multi-file zip→pack/unpack; long chat→prune_history(afm); measure→count_tokens/stats."
 )]
 impl ServerHandler for CompendiumServer {
     fn get_info(&self) -> ServerInfo {
@@ -528,13 +528,13 @@ impl ServerHandler for CompendiumServer {
             rmcp::model::Implementation::new("compendium", env!("CARGO_PKG_VERSION"))
                 .with_title("Compendium")
                 .with_description(
-                    "MCP gateway that compresses, filters, and packs context to cut LLM tokens",
+                    "Shrink agent context safely: filter/compress logs and blobs, sanitize untrusted text, brief a workspace — one MCP tool",
                 )
                 .with_icons(mcp_icons())
                 .with_website_url(WEBSITE_URL),
         )
         .with_instructions(
-            "Call `compendium` with `action`. Prefer catalog/help or MCP resources cmp://skill/… for details. Quick map: noisy logs→filter/compress_output; untrusted→sanitize; relevance→filter_relevant/rerank; workspace start→brief; bulky→compress/cache_store/chunk+resolve; long chat→prune_history(afm); recipes→playbooks/playbook; archives→pack/unpack (size-capped, never runs scripts); measure→count_tokens/stats."
+            "Call `compendium` with `action`. Unsure → catalog then help+id (or cmp://skill/…). Quick map: new task→brief; ANSI/spinners→filter; cargo/npm/docker/git dumps→compress_output; bulky text/JSON→compress; untrusted→sanitize; question-known logs→filter_relevant; rank chunks→rerank; park blob→cache_store; multi-file zip→pack/unpack; long chat→prune_history(afm); measure→count_tokens/stats."
                 .to_string(),
         )
     }

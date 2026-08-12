@@ -8,6 +8,21 @@ MCP server that **minimizes LLM token usage** by compressing, summarizing, filte
 
 Built in Rust with the official [`rmcp`](https://crates.io/crates/rmcp) SDK.
 
+## Why / when to use Compendium
+
+Use it when an agent is about to paste **large or noisy context** into the model (build logs, test dumps, API JSON, untrusted web/tool text, long chat, or a fresh workspace). The goal is a **smaller, safer, still-useful** prompt — not another planner or agent runtime.
+
+| Situation | Call |
+|-----------|------|
+| Unsure which action | `catalog` → `help` + `id` (or read `cmp://skill/…`) |
+| New task in a repo | `brief` with a short `query` |
+| Noisy terminal / CLI dump | `filter` (generic) or `compress_output` (cargo/npm/docker/git/…) |
+| Bulky text/JSON to densify | `compress` (small inputs bypass unless `force`) |
+| Untrusted paste / secrets / IPI | `sanitize` (or `sanitize_input: true` on the next action) |
+| Guided recipe | `playbooks` → `playbook` |
+
+Heuristic paths work with **no local model**. Optional loopback LLM improves `summarize_smart` / hybrid `rerank` / smart `filter_relevant`.
+
 ## Quick start (Cursor)
 
 You need **Node.js 18+**. Compendium itself arrives via npm — no Rust install required.
@@ -97,7 +112,7 @@ Default HTTP bind: `127.0.0.1:8788` (override with arg or `COMPENDIUM_HTTP_BIND`
 
 ## Tools
 
-Single MCP tool: **`compendium`**. Choose the operation with `action`:
+Single MCP tool: **`compendium`**. Choose the operation with `action`. Prefer the [Why / when](#why--when-to-use-compendium) table for the first call; use the full list below only when you need a specific field.
 
 | `action` | Purpose | Main fields |
 |----------|---------|-------------|
@@ -144,7 +159,7 @@ Optional on most text actions: `sanitize_input: true` scrubs before processing. 
 
 `brief` walks `brief.root` (default: process cwd) with `.gitignore` / `.ignore`, BM25-ranks paths/chunks, window-reads oversized files (not head-truncate), and returns a structured `briefing`: **Task / Status / Evidence / Caveats / Sources / Read next**, plus `cache_key`. Status uses a local SLM when `COMPENDIUM_LOCAL_LLM_URL` is set (`backend: local_llm`); otherwise heuristic bullets. Caveats flag truncated files and docs older than selected code. **Read next** includes source paths plus suggested `cmp://skill/playbook/…` / action URIs. Optional `COMPENDIUM_BRIEF_ROOT` restricts allowed roots. Briefings are sanitized by default.
 
-Example:
+Example — noisy log (canonical first call after install):
 
 ```json
 {
@@ -153,6 +168,8 @@ Example:
   "filter": { "strip_ansi": true, "keep_patterns": ["ERROR|WARN"] }
 }
 ```
+
+Discover more without reading this README: `{"action":"catalog"}` then `{"action":"help","id":"compress_output"}`. Sample payloads: [`examples/`](examples/).
 
 Response envelope: `{ "ok": true, "action": "filter", "result_json": "{...}" }`. Parse `result_json` as JSON for the action-specific payload.
 

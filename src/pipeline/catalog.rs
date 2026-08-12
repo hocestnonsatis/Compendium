@@ -35,21 +35,21 @@ const ACTIONS: &[ActionAd] = &[
     ActionAd {
         id: "filter",
         one_liner: "Strip ANSI/boilerplate; densify JSON; keep/drop regexes",
-        when_to_use: "Noisy terminal logs — not for cargo/npm dumps (use compress_output)",
+        when_to_use: "Noisy ANSI/spinner logs — not cargo/npm/docker/git dumps (use compress_output)",
         fields: "text, filter?, query?",
         uri: "cmp://skill/action/filter",
     },
     ActionAd {
         id: "compress",
         one_liner: "Dense semantic compression of text/code/logs",
-        when_to_use: "Bulky blobs >~1000 chars; small inputs bypass unless force=true",
+        when_to_use: "Bulky text/JSON/code to densify — not domain CLI dumps (compress_output); small inputs need force=true",
         fields: "text, compress?",
         uri: "cmp://skill/action/compress",
     },
     ActionAd {
         id: "compress_output",
         one_liner: "Domain-aware stdout/stderr scrub (git/cargo/npm/docker/…)",
-        when_to_use: "CLI tool dumps — prefer over filter when domain is known",
+        when_to_use: "Known CLI tool dumps — prefer over filter; set output.domain or leave auto",
         fields: "text, output?",
         uri: "cmp://skill/action/compress_output",
     },
@@ -162,14 +162,14 @@ const ACTIONS: &[ActionAd] = &[
     ActionAd {
         id: "catalog",
         one_liner: "List short action (+ playbook) advertisements",
-        when_to_use: "First call when unsure — do not invent action names",
+        when_to_use: "Unsure which action? Call this first, then help+id — do not invent names",
         fields: "(none)",
         uri: "cmp://skill/action/catalog",
     },
     ActionAd {
         id: "help",
-        one_liner: "Full usage notes + example for one action",
-        when_to_use: "After catalog — load details for one id",
+        one_liner: "Usage notes + example for one action",
+        when_to_use: "After catalog — load one id (force=true for full example+notes)",
         fields: "id (or key)",
         uri: "cmp://skill/action/help",
     },
@@ -378,8 +378,16 @@ fn example_for(id: &str) -> Value {
 
 fn notes_for(id: &str) -> Vec<&'static str> {
     match id {
+        "filter" => vec![
+            "Generic ANSI/boilerplate strip. For cargo/npm/docker/git/kubectl dumps prefer compress_output.",
+            "Optional query (top-level or filter.query) keeps BM25-relevant lines after other filters.",
+        ],
         "compress" | "summarize" | "summarize_smart" => vec![
             "Soft payloads under COMPENDIUM_SIGNAL_MIN_CHARS (default 1000) bypass unless force=true.",
+            "compress densifies; summarize outlines. Prefer filter_relevant when you already know the question.",
+        ],
+        "compress_output" => vec![
+            "Domain heuristics beat generic filter for tool dumps. Set output.domain or leave auto.",
         ],
         "brief" => vec![
             "Returns structured briefing + cache_key; sanitized by default.",
@@ -406,6 +414,10 @@ fn notes_for(id: &str) -> Vec<&'static str> {
         ],
         "help" | "catalog" => vec![
             "Also available as MCP resources under cmp://skill/…",
+            "Default help is compressed; force=true (or resources/read) for example+notes.",
+        ],
+        "sanitize" => vec![
+            "Prefer sanitize_input=true on the next action when you still need filter/compress afterward.",
         ],
         _ => vec![],
     }

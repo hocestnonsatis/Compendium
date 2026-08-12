@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Ops corpus fixtures: `testdata/shell-noise.txt`, `npm-audit.txt`, `github-pr.json`, `untrusted-paste.txt` + eval_regression coverage.
+- DX: README Why/when table; clearer tool + server instructions; catalog `when_to_use` / help notes for filter vs compress_output; `examples/sanitize-untrusted.json` + first-10-min path in `examples/README.md`.
+- MCP resources: action resource descriptions include `when_to_use`.
 
 ## [0.6.1] - 2026-08-12
 
