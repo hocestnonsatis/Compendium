@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-08-12
+
 ### Fixed
 
 - Release: skip optionalDeps/wrapper version-presence gates before OIDC publish (`COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE`) — tag exists before packages are published.
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Ops corpus fixtures: `testdata/shell-noise.txt`, `npm-audit.txt`, `github-pr.json`, `untrusted-paste.txt` + eval_regression coverage.
+- Soft contract smoke: tiny `max_tokens` may drop priority JSON fields only via an explicit hard-truncate marker.
 - DX: README Why/when table; clearer tool + server instructions; catalog `when_to_use` / help notes for filter vs compress_output; `examples/sanitize-untrusted.json` + first-10-min path in `examples/README.md`.
 - MCP resources: action resource descriptions include `when_to_use`.
 

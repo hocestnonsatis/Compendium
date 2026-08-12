@@ -573,4 +573,39 @@ mod tests {
         );
         assert!(result.content.contains("_truncated_keys"));
     }
+
+    #[test]
+    fn smoke_tiny_max_tokens_boundary_on_github_pr_fixture() {
+        use std::path::PathBuf;
+
+        let input = std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/github-pr.json"),
+        )
+        .expect("fixture");
+        for budget in [80usize, 200, 600, 2_500] {
+            let result = compress(
+                &input,
+                &CompressOptions {
+                    content_type: ContentType::Json,
+                    force: true,
+                    max_tokens: Some(budget),
+                    ..Default::default()
+                },
+                &Config::default(),
+            );
+            let has_title = result.content.contains("fix: handle null items");
+            let truncated = result.content.contains("truncated to ~");
+            eprintln!(
+                "budget={budget} tokens_out={} title={has_title} hard_trunc={truncated}",
+                result.metrics.result_tokens
+            );
+            // Soft contract for 0.6.x: tiny budgets may drop priority fields, but only via
+            // an explicit hard-truncate marker — not silent loss after densify.
+            assert!(
+                has_title || truncated,
+                "budget={budget}: lost title without explicit truncation marker; got:\n{}",
+                result.content
+            );
+        }
+    }
 }

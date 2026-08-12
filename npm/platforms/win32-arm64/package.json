@@ -1,6 +1,6 @@
 {
   "name": "compendium-mcp-win32-arm64",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Windows ARM64 native binary for compendium-mcp",
   "license": "MIT",
   "os": [
