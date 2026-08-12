@@ -1,0 +1,57 @@
+# npm audit report (synthetic fixture — not a live scan)
+
+npm notice 
+npm notice New major version of npm available! 9.8.1 -> 10.9.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v10.9.0
+npm notice Run npm install -g npm@10.9.0 to update!
+npm notice 
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+
+lodash  <4.17.21
+Severity: high
+Prototype Pollution - https://github.com/advisories/GHSA-fvqr-27r7-38j7
+fix via: app > utils > lodash
+fix: npm audit fix --force
+node_modules/lodash
+
+minimist  <1.2.6
+Severity: critical
+Prototype Pollution in minimist - https://github.com/advisories/GHSA-xvch-5gv4-984h
+fix via: app > conf > minimist
+fix: npm audit fix
+node_modules/minimist
+
+semver  7.0.0 - 7.5.1
+Severity: moderate
+semver vulnerable to Regular Expression Denial of Service - https://github.com/advisories/GHSA-c2qf-rxjj-qqgw
+fix via: app > npm-package-arg > semver
+fix: npm audit fix
+node_modules/semver
+
+# filler advisory noise (repeated boilerplate agents often see)
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+info visiting https://registry.npmjs.org/-/npm/v1/security/audits
+debug audit request body bytes=48291
+debug audit request body bytes=48291
+debug audit request body bytes=48291
+debug audit request body bytes=48291
+debug http 200 https://registry.npmjs.org/-/npm/v1/security/audits 812ms
+debug http 200 https://registry.npmjs.org/-/npm/v1/security/audits 812ms
+debug http 200 https://registry.npmjs.org/-/npm/v1/security/audits 812ms
+debug http 200 https://registry.npmjs.org/-/npm/v1/security/audits 812ms
+debug http 200 https://registry.npmjs.org/-/npm/v1/security/audits 812ms
+
+3 vulnerabilities (1 moderate, 1 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force

@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Release: skip optionalDeps/wrapper version-presence gates before OIDC publish (`COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE`) — tag exists before packages are published.
+- `sanitize`: redact `sk-proj-…` OpenAI keys and env-style assignments (`OPENAI_API_KEY=`, `AWS_SECRET_ACCESS_KEY=`, `GH_TOKEN=`).
+- `compress` JSON densify: when wide objects drop keys, keep priority fields (`title`, `number`, `state`, `body`, …) instead of only the first alphabetical 15.
+
+### Added
+
+- Ops corpus fixtures: `testdata/shell-noise.txt`, `npm-audit.txt`, `github-pr.json`, `untrusted-paste.txt` + eval_regression coverage.
 
 ## [0.6.1] - 2026-08-12
 

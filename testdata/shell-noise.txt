@@ -1,0 +1,52 @@
+npm notice 
+npm notice New major version of npm available! 9.8.1 -> 10.9.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v10.9.0
+npm notice Run npm install -g npm@10.9.0 to update!
+npm notice 
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'some-pkg@1.2.3',
+npm warn EBADENGINE   required: { node: '>=20' },
+npm warn EBADENGINE   current: { node: 'v18.20.4', npm: '9.8.1' }
+npm warn EBADENGINE }
+npm http fetch GET 200 https://registry.npmjs.org/lodash 123ms
+npm http fetch GET 200 https://registry.npmjs.org/left-pad 98ms
+npm http fetch GET 200 https://registry.npmjs.org/chalk 87ms
+npm http fetch GET 200 https://registry.npmjs.org/debug 76ms
+npm http fetch GET 200 https://registry.npmjs.org/ms 65ms
+added 342 packages in 18s
+24 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+# --- docker pull noise ---
+latest: Pulling from library/node
+a1b2c3d4e5f6: Waiting
+a1b2c3d4e5f6: Downloading [=>                                                 ]  1.2MB/120MB
+a1b2c3d4e5f6: Downloading [=========================>                         ] 60.0MB/120MB
+a1b2c3d4e5f6: Extracting [==================================================>] 120MB/120MB
+a1b2c3d4e5f6: Pull complete
+b2c3d4e5f6a7: Waiting
+b2c3d4e5f6a7: Downloading [=============>                                     ]  20MB/80MB
+b2c3d4e5f6a7: Pull complete
+Digest: sha256:deadbeefcafebabe0123456789abcdef0123456789abcdef0123456789abcdef
+Status: Downloaded newer image for node:latest
+docker.io/library/node:latest
+
+# --- kubectl get noise ---
+NAME                         READY   STATUS    RESTARTS   AGE
+api-7d9f8c6b5-abcde          1/1     Running   0          3d
+api-7d9f8c6b5-fghij          1/1     Running   0          3d
+worker-5c4b3a2d1-klmno       0/1     CrashLoopBackOff   12         2h
+worker-5c4b3a2d1-pqrst       1/1     Running   0          2h
+
+Error: process "npm run build" exited with code 1
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! app@0.1.0 build: `vite build`
+npm ERR! Failed at the app@0.1.0 build script.
+npm ERR! TypeError: Cannot read properties of undefined (reading 'map')
+npm ERR!     at Object.<anonymous> (/workspace/src/build.mjs:42:18)

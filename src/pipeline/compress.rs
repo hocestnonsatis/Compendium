@@ -273,6 +273,91 @@ fn densify_json_structure(text: &str) -> String {
     }
 }
 
+/// Keys agents usually need when a wide JSON object is densified.
+/// Matched case-insensitively; kept before alphabetical fill.
+fn json_priority_key(key: &str) -> bool {
+    matches!(
+        key.to_ascii_lowercase().as_str(),
+        "id" | "node_id"
+            | "name"
+            | "full_name"
+            | "title"
+            | "subject"
+            | "summary"
+            | "description"
+            | "body"
+            | "message"
+            | "error"
+            | "errors"
+            | "status"
+            | "state"
+            | "number"
+            | "path"
+            | "file"
+            | "filename"
+            | "url"
+            | "html_url"
+            | "sha"
+            | "ref"
+            | "login"
+            | "type"
+            | "kind"
+            | "severity"
+            | "merged"
+            | "draft"
+            | "labels"
+            | "head"
+            | "base"
+            | "user"
+            | "created_at"
+            | "updated_at"
+            | "closed_at"
+            | "merged_at"
+    )
+}
+
+fn compact_object_map(
+    map: &serde_json::Map<String, serde_json::Value>,
+    depth: usize,
+) -> serde_json::Value {
+    use serde_json::{json, Map, Value};
+
+    const KEEP: usize = 15;
+    if map.len() <= 20 {
+        let mut out = Map::new();
+        for (k, v) in map {
+            out.insert(k.clone(), compact_value(v, depth + 1));
+        }
+        return Value::Object(out);
+    }
+
+    let mut out = Map::new();
+    // 1) Priority keys first (stable relative order of appearance in map).
+    for (k, v) in map {
+        if out.len() >= KEEP {
+            break;
+        }
+        if json_priority_key(k) {
+            out.insert(k.clone(), compact_value(v, depth + 1));
+        }
+    }
+    // 2) Fill remaining slots with other keys in map order (serde_json: sorted).
+    for (k, v) in map {
+        if out.len() >= KEEP {
+            break;
+        }
+        if !out.contains_key(k) {
+            out.insert(k.clone(), compact_value(v, depth + 1));
+        }
+    }
+    let kept = out.len();
+    out.insert(
+        "_truncated_keys".into(),
+        json!(map.len().saturating_sub(kept)),
+    );
+    Value::Object(out)
+}
+
 fn compact_value(value: &serde_json::Value, depth: usize) -> serde_json::Value {
     use serde_json::{json, Value};
     match value {
@@ -293,24 +378,7 @@ fn compact_value(value: &serde_json::Value, depth: usize) -> serde_json::Value {
             out.extend(tail);
             Value::Array(out)
         }
-        Value::Object(map) if map.len() > 20 => {
-            let mut out = serde_json::Map::new();
-            for (k, v) in map.iter().take(15) {
-                out.insert(k.clone(), compact_value(v, depth + 1));
-            }
-            out.insert(
-                "_truncated_keys".into(),
-                json!(map.len().saturating_sub(15)),
-            );
-            Value::Object(out)
-        }
-        Value::Object(map) => {
-            let mut out = serde_json::Map::new();
-            for (k, v) in map {
-                out.insert(k.clone(), compact_value(v, depth + 1));
-            }
-            Value::Object(out)
-        }
+        Value::Object(map) => compact_object_map(map, depth),
         Value::Array(arr) => {
             Value::Array(arr.iter().map(|v| compact_value(v, depth + 1)).collect())
         }
@@ -476,5 +544,33 @@ mod tests {
         let result = compress("tiny", &CompressOptions::default(), &Config::default());
         assert!(result.bypassed);
         assert_eq!(result.content, "tiny");
+    }
+
+    #[test]
+    fn json_densify_keeps_priority_keys_on_wide_objects() {
+        let mut obj = serde_json::Map::new();
+        for i in 0..30 {
+            obj.insert(format!("aaa_pad_{i:02}"), serde_json::json!(i));
+        }
+        obj.insert("title".into(), serde_json::json!("fix: keep me"));
+        obj.insert("number".into(), serde_json::json!(42));
+        obj.insert("state".into(), serde_json::json!("open"));
+        let input = serde_json::Value::Object(obj).to_string();
+        let result = compress(
+            &input,
+            &CompressOptions {
+                content_type: ContentType::Json,
+                force: true,
+                max_tokens: Some(4_000),
+                ..Default::default()
+            },
+            &Config::default(),
+        );
+        assert!(
+            result.content.contains("fix: keep me") && result.content.contains("\"number\":42"),
+            "priority keys must survive densify; got:\n{}",
+            result.content
+        );
+        assert!(result.content.contains("_truncated_keys"));
     }
 }

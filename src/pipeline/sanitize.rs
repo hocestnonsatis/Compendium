@@ -76,7 +76,8 @@ fn secret_rules() -> &'static [Rule] {
             Rule {
                 kind: "secret",
                 label: "openai_sk",
-                re: Regex::new(r"(?i)\bsk-[a-z0-9]{20,}").expect("regex"),
+                // Legacy `sk-…` and project keys `sk-proj-…` (hyphenated body).
+                re: Regex::new(r"(?i)\bsk-[a-z0-9_-]{16,}").expect("regex"),
                 replace_all: "[REDACTED_OPENAI_KEY]",
             },
             Rule {
@@ -115,8 +116,9 @@ fn secret_rules() -> &'static [Rule] {
             Rule {
                 kind: "secret",
                 label: "assignment_secret",
+                // Matches `API_KEY=…`, `OPENAI_API_KEY=…`, `AWS_SECRET_ACCESS_KEY=…`, `GH_TOKEN=…`.
                 re: Regex::new(
-                    r#"(?i)\b(api[_-]?key|password|secret|token|passwd)\s*[:=]\s*['"]?[^\s'"]{8,}"#,
+                    r#"(?i)\b[a-z0-9_]*(?:api[_-]?key|password|secret(?:_access_key)?|token|passwd)\s*[:=]\s*['"]?[^\s'"]{8,}"#,
                 )
                 .expect("regex"),
                 replace_all: "[REDACTED_ASSIGNMENT]",
@@ -327,6 +329,16 @@ mod tests {
         assert!(!result.content.contains("sk-abcdefgh"));
         assert!(!result.content.contains("ghp_abcdefgh"));
         assert!(result.content.contains("REDACTED"));
+    }
+
+    #[test]
+    fn redacts_sk_proj_and_env_style_assignments() {
+        let input = "OPENAI_API_KEY=sk-proj-EXAMPLESECRETKEYVALUE0000000001\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nGH_TOKEN=ghp_EXAMPLETOKENVALUE000000000000000000\n";
+        let result = sanitize(input, &SanitizeOptions::default(), &Config::default());
+        assert!(!result.content.contains("sk-proj-EXAMPLE"));
+        assert!(!result.content.contains("wJalrXUtnFEMI"));
+        assert!(!result.content.contains("ghp_EXAMPLETOKEN"));
+        assert!(result.redacted_count >= 2);
     }
 
     #[test]

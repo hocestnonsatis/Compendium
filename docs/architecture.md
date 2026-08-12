@@ -46,7 +46,7 @@ Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cach
 
 ## Quality gates
 
-- Fixtures: [`testdata/`](../testdata/) (noisy logs, cargo fail, long chat, bulky JSON, rerank candidates).
+- Fixtures: [`testdata/`](../testdata/) — noisy logs, cargo fail, shell/npm/docker noise, npm audit, GitHub PR JSON, untrusted paste, long chat, bulky JSON, rerank candidates.
 - CI: `cargo test --test eval_regression` — token-reduction floors, heuristic determinism, soft latency smoke.
 - Latency budget: `COMPENDIUM_EVAL_LATENCY_MS` (default 2000 locally; CI uses a higher soft cap).
 - Heuristic paths must stay deterministic (prefix-cache friendly). Smart/SLM paths report `backend`.

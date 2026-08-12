@@ -162,7 +162,7 @@ Response envelope: `{ "ok": true, "action": "filter", "result_json": "{...}" }`.
 assets/                # brand mark (SVG/PNG); baked into MCP icons via data URI
 docs/                  # architecture notes
 examples/              # sample MCP tool-call JSON payloads
-testdata/              # eval fixtures (noisy logs, cargo fail, …)
+testdata/              # eval fixtures (logs, audit, PR JSON, untrusted paste, …)
 src/
   main.rs              # CLI: stdio | http
   lib.rs

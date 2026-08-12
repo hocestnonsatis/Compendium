@@ -201,6 +201,113 @@ fn sanitize_redacts_secret_patterns() {
 }
 
 #[test]
+fn compress_output_shell_noise_keeps_failure_signal() {
+    let cfg = Config::default();
+    let text = read_fixture("shell-noise.txt");
+    let opts = CompressOutputOptions {
+        domain: OutputDomain::Npm,
+        keep_head_tail: true,
+        head_lines: 20,
+        tail_lines: 40,
+        max_tokens: None,
+    };
+    let a = compress_output(&text, &opts, &cfg);
+    let b = compress_output(&text, &opts, &cfg);
+    assert_deterministic(&a.content, &b.content);
+    assert!(
+        a.content.contains("ELIFECYCLE") || a.content.to_lowercase().contains("typeerror"),
+        "must retain build failure signal; got:\n{}",
+        a.content
+    );
+    assert!(
+        a.metrics.result_tokens < a.metrics.original_tokens,
+        "npm/shell noise should shrink; {} -> {}",
+        a.metrics.original_tokens,
+        a.metrics.result_tokens
+    );
+}
+
+#[test]
+fn filter_npm_audit_keeps_critical_signal() {
+    let cfg = Config::default();
+    let text = read_fixture("npm-audit.txt");
+    // Domain compress collapses registry/debug chatter while keeping advisory body.
+    let opts = CompressOutputOptions {
+        domain: OutputDomain::Npm,
+        keep_head_tail: true,
+        head_lines: 40,
+        tail_lines: 20,
+        max_tokens: Some(500),
+    };
+    let a = compress_output(&text, &opts, &cfg);
+    let b = compress_output(&text, &opts, &cfg);
+    assert_deterministic(&a.content, &b.content);
+    assert!(
+        a.content.to_lowercase().contains("critical")
+            && a.content.to_lowercase().contains("minimist"),
+        "must retain critical advisory; got:\n{}",
+        a.content
+    );
+    assert!(
+        a.metrics.result_tokens <= a.metrics.original_tokens,
+        "audit compress should not inflate; {} -> {}",
+        a.metrics.original_tokens,
+        a.metrics.result_tokens
+    );
+}
+
+#[test]
+fn compress_github_pr_json_keeps_title() {
+    let cfg = Config::default();
+    let text = read_fixture("github-pr.json");
+    // Densify pads/URLs; avoid a tiny max_tokens that hard-truncates past `title`.
+    let opts = CompressOptions {
+        force: true,
+        max_tokens: Some(2_500),
+        ..Default::default()
+    };
+    let a = compress(&text, &opts, &cfg);
+    let b = compress(&text, &opts, &cfg);
+    assert_deterministic(&a.content, &b.content);
+    assert!(
+        a.content.contains("fix: handle null items")
+            && (a.content.contains("\"number\":42") || a.content.contains("\"number\": 42")),
+        "must retain PR title+number; got:\n{}",
+        a.content
+    );
+    assert!(
+        a.metrics.reduction_ratio >= 0.05,
+        "expected API JSON densify savings; ratio={}",
+        a.metrics.reduction_ratio
+    );
+}
+
+#[test]
+fn sanitize_untrusted_paste_redacts_and_flags() {
+    let cfg = Config::default();
+    let text = read_fixture("untrusted-paste.txt");
+    let a = sanitize(&text, &SanitizeOptions::default(), &cfg);
+    let b = sanitize(&text, &SanitizeOptions::default(), &cfg);
+    assert_deterministic(&a.content, &b.content);
+    assert!(!a.content.contains("sk-proj-EXAMPLESECRETKEYVALUE0000000000000001"));
+    assert!(!a.content.contains("ghp_EXAMPLETOKENVALUE000000000000000000"));
+    assert!(
+        a.redacted_count >= 2,
+        "expected multiple secret redactions; findings={:?}",
+        a.findings
+    );
+    let kinds: Vec<_> = a.findings.iter().map(|f| f.kind.as_str()).collect();
+    assert!(
+        kinds.iter().any(|k| *k == "secret"),
+        "expected secret finding; got {kinds:?}"
+    );
+    assert!(
+        kinds.iter().any(|k| *k == "ipi" || *k == "poison"),
+        "expected ipi/poison finding; got {kinds:?}"
+    );
+}
+
+#[test]
 fn summarize_outline_is_deterministic() {
     let cfg = Config::default();
     let text = "# Intro\nEnough detail for a hierarchical outline summary to be useful here.\n## Setup\nInstall deps and configure the environment carefully.\n## Build\ncargo build --release with real-tokens.\n";
