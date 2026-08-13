@@ -1,6 +1,6 @@
 Architectural Blueprint for Compendium: High-Performance Local Context Optimization via MCP
 
-> **Status (v0.6.2):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap shipped in 0.5.0; **C-roadmap** (eval depth / DX / retrieval polish / ops) shipped in 0.6.0; **0.6.1** clears residual npm platforms + sessionless HTTP polish; **0.6.2** ops corpus correctness (sanitize / JSON densify) + first-10-min DX; deferred items below remain out of scope.
+> **Status (v0.6.3):** Sections 1–5 are design background. Section 6 (security) and section 7 (roadmap) are the live product truth — see [CHANGELOG.md](CHANGELOG.md) and [docs/architecture.md](docs/architecture.md). Compendium is a **context gateway** (single `compendium` tool), not a foreign-MCP schema proxy. B-roadmap shipped in 0.5.0; **C-roadmap** (eval depth / DX / retrieval polish / ops) shipped in 0.6.0; **0.6.1** residual npm + sessionless HTTP; **0.6.2** ops corpus + first-10-min DX; **0.6.3** `setup-ollama` CLI / playbook; deferred items below remain out of scope.
 
 1. Executive Summary: The Context Bloat Crisis and Local Mitigation Strategies
 
@@ -149,7 +149,7 @@ Compendium Security Mandates (as implemented / planned)
 
 | Item | Notes |
 |------|--------|
-| **Pause after 0.6.2** | Observe real usage; do not invent 0.7 until recurring preserve/discard failures appear. Idle overnight ticks OK. |
+| **Pause after 0.6.3** | Observe real usage; do not invent 0.7 until recurring preserve/discard failures appear. Idle overnight ticks OK. |
 | Keep npm platform packages + OIDC green | All seven platforms on registry; `residual_oidc` empty. `npm run check-npm-gates` enforces alignment + residual probe. See [DISTRIBUTION.md](npm/DISTRIBUTION.md). |
 | Keep eval floors green | `cargo test --test eval_regression`; candidate 0.7 thesis remains *Predictable Context Reduction* (unannounced). |
 

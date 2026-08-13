@@ -7,7 +7,7 @@ Each file is a single JSON object: set `action` and the fields that action needs
 
 ## First 10 minutes
 
-1. Install / reload MCP ([`install-npx`](../playbooks/install-npx.md) playbook).
+1. Install / reload MCP ([`install-npx`](../playbooks/install-npx.md) playbook). Optional SLM: [`setup-ollama`](../playbooks/setup-ollama.md) (`npx -y compendium-mcp setup-ollama --write-mcp`).
 2. Call [`catalog.json`](catalog.json) — pick an action from `when_to_use`.
 3. Call `help` with that `id` (add `"force": true` for the full example).
 4. Run one of the situation samples below.
@@ -36,6 +36,7 @@ Each file is a single JSON object: set `action` and the fields that action needs
 CLI smoke (after `cargo build --release`):
 
 ```bash
+./target/release/compendium setup-ollama --help
 # Not a full MCP client — use your host’s tool UI, or the e2e harness:
 cargo test --test e2e_smoke -- --nocapture
 ```

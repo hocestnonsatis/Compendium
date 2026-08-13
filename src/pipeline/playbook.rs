@@ -49,6 +49,10 @@ const EMBEDDED: &[(&str, &str)] = &[
         include_str!("../../playbooks/install-npx.md"),
     ),
     (
+        "setup-ollama",
+        include_str!("../../playbooks/setup-ollama.md"),
+    ),
+    (
         "http-transport",
         include_str!("../../playbooks/http-transport.md"),
     ),

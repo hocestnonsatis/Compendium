@@ -289,8 +289,12 @@ fn sanitize_untrusted_paste_redacts_and_flags() {
     let a = sanitize(&text, &SanitizeOptions::default(), &cfg);
     let b = sanitize(&text, &SanitizeOptions::default(), &cfg);
     assert_deterministic(&a.content, &b.content);
-    assert!(!a.content.contains("sk-proj-EXAMPLESECRETKEYVALUE0000000000000001"));
-    assert!(!a.content.contains("ghp_EXAMPLETOKENVALUE000000000000000000"));
+    assert!(!a
+        .content
+        .contains("sk-proj-EXAMPLESECRETKEYVALUE0000000000000001"));
+    assert!(!a
+        .content
+        .contains("ghp_EXAMPLETOKENVALUE000000000000000000"));
     assert!(
         a.redacted_count >= 2,
         "expected multiple secret redactions; findings={:?}",
@@ -298,7 +302,7 @@ fn sanitize_untrusted_paste_redacts_and_flags() {
     );
     let kinds: Vec<_> = a.findings.iter().map(|f| f.kind.as_str()).collect();
     assert!(
-        kinds.iter().any(|k| *k == "secret"),
+        kinds.contains(&"secret"),
         "expected secret finding; got {kinds:?}"
     );
     assert!(

@@ -36,8 +36,11 @@ Before touching release/platform wiring, run `npm run check-npm-gates` (selftest
 Optional local SLM (Ollama / any OpenAI-compatible loopback server):
 
 ```bash
+./target/release/compendium setup-ollama --write-mcp
+# or manually:
 export COMPENDIUM_LOCAL_LLM_URL=http://127.0.0.1:11434/v1
-export COMPENDIUM_LOCAL_LLM_MODEL=qwen:latest
+export COMPENDIUM_LOCAL_LLM_MODEL=qwen2.5:3b
+export COMPENDIUM_LOCAL_EMBED_MODEL=nomic-embed-text
 ```
 
 npm packaging notes: [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md).

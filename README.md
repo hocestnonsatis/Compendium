@@ -48,35 +48,23 @@ That alone is enough: filter, compress, summarize, cache, and BM25 actions all w
 
 ### 2. (Optional) Smarter summaries with Ollama
 
-Want better `summarize_smart` / `filter_relevant`? Run a small model on your machine and point Compendium at it.
-
-1. Install [Ollama](https://ollama.com/) and start it (default: `http://127.0.0.1:11434`).
-2. Pull a chat model, for example:
+Want better `summarize_smart` / `filter_relevant` / hybrid `rerank`? One command after the MCP server is added:
 
 ```bash
-ollama pull qwen:latest
-# or a smaller one: ollama pull qwen2.5:3b
+npx -y compendium-mcp setup-ollama --write-mcp
 ```
 
-3. Extend the MCP `env` block (URL must stay on **localhost** — Compendium blocks remote hosts on purpose):
+That detects (or `--install`s) [Ollama](https://ollama.com/), pulls a small chat + embed model (`qwen2.5:3b` + `nomic-embed-text`), probes loopback `http://127.0.0.1:11434/v1`, and merges `COMPENDIUM_LOCAL_LLM_*` into `~/.cursor/mcp.json`. Use `--project` for `.cursor/mcp.json`. Reload MCP, then `action: "llm_status"` should show `reachable: true`. `"backend": "local_llm"` on smart actions means Ollama answered; `"heuristic"` means it fell back.
 
-```json
-{
-  "mcpServers": {
-    "compendium": {
-      "command": "npx",
-      "args": ["-y", "compendium-mcp"],
-      "env": {
-        "COMPENDIUM_LOCAL_LLM_URL": "http://127.0.0.1:11434/v1",
-        "COMPENDIUM_LOCAL_LLM_MODEL": "qwen:latest"
-      }
-    }
-  }
-}
+```bash
+npx -y compendium-mcp setup-ollama --help
+npx -y compendium-mcp setup-ollama --install --write-mcp --project
+npx -y compendium-mcp setup-ollama --dry-run --json
 ```
 
-4. Reload MCP, then ask the agent to call `compendium` with `action: "summarize_smart"`.  
-   In the result, `"backend": "local_llm"` means Ollama answered; `"heuristic"` means it fell back (Ollama down, wrong model name, or URL missing).
+Agent recipe: playbook `setup-ollama` (`cmp://skill/playbook/setup-ollama`).
+
+Manual / Lemonade / custom models: set `COMPENDIUM_LOCAL_LLM_URL` yourself (must stay on **localhost** — Compendium blocks remote hosts on purpose). See [Environment](#environment).
 
 **Notes**
 
@@ -107,6 +95,7 @@ Binary packaging details for maintainers: [npm/DISTRIBUTION.md](npm/DISTRIBUTION
 |------|---------|-------|
 | **stdio** (default) | `compendium` / `compendium stdio` | Cursor / Claude Desktop — dual-compat (legacy initialize or modern connect) |
 | **Streamable HTTP** | `compendium http [BIND]` | Requires `--features http`. Endpoint: `http://{bind}/mcp`. Sessionless (`2026-07-28`); JSON preferred, SSE fallback |
+| **Ollama setup** | `compendium setup-ollama` | Not an MCP transport — CLI helper (`--write-mcp`, `--dry-run`, `--json`). Alias: `compendium ollama` |
 
 Default HTTP bind: `127.0.0.1:8788` (override with arg or `COMPENDIUM_HTTP_BIND`). App cache (`COMPENDIUM_CACHE_DIR`) is not an MCP session — set it for multi-request HTTP. See playbook `http-transport`.
 
@@ -181,7 +170,8 @@ docs/                  # architecture notes
 examples/              # sample MCP tool-call JSON payloads
 testdata/              # eval fixtures (logs, audit, PR JSON, untrusted paste, …)
 src/
-  main.rs              # CLI: stdio | http
+  main.rs              # CLI: stdio | http | setup-ollama
+  setup_ollama.rs      # `compendium setup-ollama` (detect/pull/probe/write MCP env)
   lib.rs
   brand.rs             # SEP-973 icons for serverInfo + tool
   config.rs            # COMPENDIUM_* env config
@@ -246,7 +236,8 @@ Same `command` / `args` / `env` as Cursor, in Claude’s MCP config file.
   "COMPENDIUM_DEFAULT_MAX_TOKENS": "2048",
   "COMPENDIUM_TOKENIZER": "cl100k_base",
   "COMPENDIUM_LOCAL_LLM_URL": "http://127.0.0.1:11434/v1",
-  "COMPENDIUM_LOCAL_LLM_MODEL": "qwen:latest"
+  "COMPENDIUM_LOCAL_LLM_MODEL": "qwen2.5:3b",
+  "COMPENDIUM_LOCAL_EMBED_MODEL": "nomic-embed-text"
 }
 ```
 
@@ -292,7 +283,7 @@ Point an MCP streamable-HTTP client at that URL (e.g. `StreamableHttpClientTrans
 | `COMPENDIUM_SIMILARITY_THRESHOLD` | `0.85` | Jaccard line-dedupe threshold |
 | `COMPENDIUM_HTTP_BIND` | `127.0.0.1:8788` | Default HTTP listen address |
 | `COMPENDIUM_LOCAL_LLM_URL` | _(unset)_ | OpenAI-compatible base URL (e.g. `http://127.0.0.1:11434/v1` or `http://127.0.0.1:13305/api/v1`). Enables smart actions. |
-| `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id on that server (Ollama: e.g. `qwen:latest`) |
+| `COMPENDIUM_LOCAL_LLM_MODEL` | `Qwen3-4B-GGUF` | Model id on that server (Ollama setup default: `qwen2.5:3b`) |
 | `COMPENDIUM_LOCAL_EMBED_MODEL` | _(same as chat)_ | Embeddings model for hybrid `rerank` / `brief` (e.g. `nomic-embed-text`) |
 | `COMPENDIUM_HYBRID_ALPHA` | `0.55` | BM25 weight in hybrid score (0–1); remainder is embedding cosine |
 | `COMPENDIUM_RERANK_CROSS_ENCODER` | _(off)_ | When `1`/`true`, `rerank` SLM-rescores top-N after BM25/hybrid |
@@ -389,7 +380,7 @@ Start the new turn with the returned `briefing` (or `cache_get` the `cache_key`)
 
 ## Local small language model
 
-Follow [Quick start §2](#2-optional-smarter-summaries-with-ollama) for Ollama.
+Follow [Quick start §2](#2-optional-smarter-summaries-with-ollama) (`npx -y compendium-mcp setup-ollama`).
 
 Rules of thumb:
 

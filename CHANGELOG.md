@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-08-13
+
+### Added
+
+- CLI: `compendium setup-ollama` (`ollama` alias) — detect or `--install` Ollama, pull small chat + embed models (`qwen2.5:3b`, `nomic-embed-text`), probe loopback `/v1`, optionally merge `COMPENDIUM_LOCAL_LLM_*` into Cursor `mcp.json` (`--write-mcp` / `--project`). Agent-friendly: `--dry-run`, `--json`, layered `--help` with examples.
+- Playbook `setup-ollama` (`cmp://skill/playbook/setup-ollama`).
+- `llm_status` unconfigured `fallback_reason` points at `npx -y compendium-mcp setup-ollama`.
+
 ## [0.6.2] - 2026-08-12
 
 ### Fixed

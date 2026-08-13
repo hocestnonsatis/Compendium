@@ -42,7 +42,7 @@ text / query / messages
 
 Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
 
-**Shipped through 0.6.2:** C-roadmap (0.6.0) + residual npm / sessionless HTTP (0.6.1) + ops corpus correctness + first-10-min DX (0.6.2). See [REPORT.md](../REPORT.md) §7. **npm:** all platform packages on registry (`residual_oidc` empty). **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings. **0.7:** not committed — candidate thesis only if real usage shows recurring preserve/discard failures.
+**Shipped through 0.6.3:** C-roadmap (0.6.0) + residual npm / sessionless HTTP (0.6.1) + ops corpus + first-10-min DX (0.6.2) + `setup-ollama` CLI (0.6.3). See [REPORT.md](../REPORT.md) §7. **npm:** all platform packages on registry (`residual_oidc` empty). **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings. **0.7:** not committed — candidate thesis only if real usage shows recurring preserve/discard failures.
 
 ## Quality gates
 
@@ -69,6 +69,7 @@ Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cach
 |------|--------|-------|
 | stdio | default | Cursor / Claude Desktop — dual-compat (legacy initialize or modern connect/`discover`) |
 | Streamable HTTP | `--features http` → `compendium http [BIND]` | `/mcp` on loopback; **sessionless** (`2026-07-28` + older Streamable HTTP without sticky sessions); JSON preferred, SSE fallback |
+| Ollama helper | `compendium setup-ollama` | Host CLI (not MCP): install/pull/probe + optional `mcp.json` env merge |
 
 App cache (`COMPENDIUM_CACHE_DIR`, `cache://` / `cmp://` keys) is **not** an MCP transport session. Prefer stdio for IDE hosts; use HTTP when the client speaks Streamable HTTP. See playbook `http-transport`.
 

@@ -405,6 +405,7 @@ fn notes_for(id: &str) -> Vec<&'static str> {
         "llm_status" => vec![
             "Reports whether COMPENDIUM_LOCAL_LLM_URL is set and reachable (GET /models).",
             "force=true also runs a tiny chat completion probe (may load the model).",
+            "If unset: npx -y compendium-mcp setup-ollama (--write-mcp to patch mcp.json).",
         ],
         "prune_history" => vec![
             "strategy=afm is preferred: Critical / Thematic / Distant tiers.",

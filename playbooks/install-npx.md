@@ -12,3 +12,4 @@ tags: install, npm, npx, distribution
 3. Brand-new platforms (`linux-x64-musl`, `win32-arm64`) need npm Trusted Publisher or one interactive publish — see `npm/DISTRIBUTION.md`.
 4. Override binary: `COMPENDIUM_BINARY=/path/to/compendium` or `COMPENDIUM_PLATFORM=linux-x64-musl`.
 5. Developers: `cargo build --release --features real-tokens,http` and point MCP at `./target/release/compendium`, then reload MCP after schema changes.
+6. Optional local SLM: `npx -y compendium-mcp setup-ollama --write-mcp` (playbook `setup-ollama`).

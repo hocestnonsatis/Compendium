@@ -413,9 +413,13 @@ async fn smoke_stdio_gateway_actions() -> anyhow::Result<()> {
         pb_list
             .get("playbooks")
             .and_then(|v| v.as_array())
-            .map(|a| a.iter().any(|p| p.get("id") == Some(&json!("noisy-logs"))))
+            .map(|a| {
+                a.iter().any(|p| p.get("id") == Some(&json!("noisy-logs")))
+                    && a.iter()
+                        .any(|p| p.get("id") == Some(&json!("setup-ollama")))
+            })
             .unwrap_or(false),
-        "missing noisy-logs playbook: {pb_list}"
+        "missing noisy-logs or setup-ollama playbook: {pb_list}"
     );
 
     let playbook = client

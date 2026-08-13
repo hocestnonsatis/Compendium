@@ -631,7 +631,9 @@ pub fn llm_status(config: &LocalLlmConfig, check_chat: bool) -> LlmStatusResult 
             embedding_model: None,
             reachable: false,
             fallback_reason: Some(
-                "COMPENDIUM_LOCAL_LLM_URL unset — smart/hybrid actions use heuristics".into(),
+                "COMPENDIUM_LOCAL_LLM_URL unset — smart/hybrid actions use heuristics. \
+                 Enable Ollama: npx -y compendium-mcp setup-ollama"
+                    .into(),
             ),
             probe: None,
         },

@@ -11,6 +11,7 @@ pub mod config;
 pub mod http;
 pub mod pipeline;
 pub mod server;
+pub mod setup_ollama;
 
 pub use config::{
     Config, LocalLlmConfig, DEFAULT_ARCHIVE_MAX_BYTES, DEFAULT_ARCHIVE_MAX_FILES,
