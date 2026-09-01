@@ -5,7 +5,7 @@
 ## Test plan
 
 - [ ] `cargo test`
-- [ ] Relevant feature tests (`--features http` / `real-tokens` if touched)
+- [ ] `cargo test --features real-tokens --lib` if token counting was touched
 - [ ] Manual MCP check if tool surface changed
 
 ## Notes

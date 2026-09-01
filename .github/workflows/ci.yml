@@ -17,36 +17,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
 
       - name: rustfmt
         run: cargo fmt --all -- --check
 
-      - name: npm version / platform gates
-        run: npm run check-npm-gates
+      - name: version sync (Cargo.toml == package.json)
+        run: npm run check-version
 
-      - name: clippy (default)
-        run: cargo clippy --all-targets -- -D warnings
+      - name: clippy
+        run: cargo clippy --all-targets --features real-tokens -- -D warnings
 
-      - name: clippy (real-tokens,http)
-        run: cargo clippy --all-targets --features real-tokens,http -- -D warnings
-
-      - name: test (default)
+      - name: test
         run: cargo test
-
-      - name: test (http smoke)
-        run: cargo test --features http --test http_smoke
 
       - name: test (real-tokens)
         run: cargo test --features real-tokens --lib
 
-      - name: eval regression (heuristic)
+      - name: eval regression
         env:
           COMPENDIUM_EVAL_LATENCY_MS: "5000"
-        run: cargo test --test eval_regression -- --nocapture
+        run: cargo test --test eval_regression

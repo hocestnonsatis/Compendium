@@ -1,6 +1,6 @@
 {
   "name": "compendium-mcp",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "MCP server that compresses, summarizes, and filters context to minimize LLM token usage",
   "license": "MIT",
   "keywords": [
@@ -34,21 +34,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "check-npm-gates": "node npm/scripts/check-versions-selftest.js && node npm/scripts/check-versions.js && node npm/scripts/check-residual-npm.js",
-    "check-versions": "node npm/scripts/check-versions.js",
-    "check-versions-selftest": "node npm/scripts/check-versions-selftest.js",
-    "check-residual-npm": "node npm/scripts/check-residual-npm.js",
-    "prepack": "node npm/scripts/check-wrapper.js && node npm/scripts/check-versions.js",
-    "prepare": "node npm/scripts/link-bins.js"
-  },
-  "optionalDependencies": {
-    "compendium-mcp-darwin-arm64": "0.6.3",
-    "compendium-mcp-darwin-x64": "0.6.3",
-    "compendium-mcp-linux-x64": "0.6.3",
-    "compendium-mcp-linux-x64-musl": "0.6.3",
-    "compendium-mcp-linux-arm64": "0.6.3",
-    "compendium-mcp-win32-x64": "0.6.3",
-    "compendium-mcp-win32-arm64": "0.6.3"
-  },
-  "preferUnplugged": true
+    "check-version": "node npm/scripts/check-version.js",
+    "prepack": "node npm/scripts/check-version.js"
+  }
 }

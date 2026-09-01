@@ -7,7 +7,7 @@ alwaysApply: true
 
 When tool output, logs, JSON, or pasted blobs are large or noisy, call the MCP tool `compendium` with an `action` instead of dumping raw text into context.
 
-Unknown action? Call `action: "catalog"` (or MCP `resources/list` on `cmp://skill/…`) then `action: "help"` with `id`.
+Unknown action? Call `action: "help"` (no `id`) for the list, then `help` + `id` for fields and an example.
 
 ## Quick map
 
@@ -16,26 +16,21 @@ Unknown action? Call `action: "catalog"` (or MCP `resources/list` on `cmp://skil
 | ANSI / boilerplate / noisy logs | `action: "filter"` + `text` |
 | git/cargo/npm/docker/kubectl stdout | `action: "compress_output"` + `text` |
 | Untrusted text / possible secrets or IPI | `action: "sanitize"` + `text` (or `sanitize_input: true`) |
-| Keep only lines about a question | `action: "filter_relevant"` or `filter` + `query` (BM25) |
-| Rank chunks for a question | `action: "rerank"` + `query` + `items` / chunk `map` (hybrid if local embeddings up) |
-| Why heuristic / LLM down? | `action: "llm_status"` (`force: true` for chat probe) |
-| New sub-task / fresh agent turn | `action: "brief"` + `query` (+ optional `brief.root`); use returned structured briefing (Status/Evidence/Caveats/Sources/Read next) or `cache_key` as starter context |
-| Dense rewrite of code/logs/JSON | `action: "compress"` + `text` (skip if &lt;~1000 chars unless `force`) |
-| Long chat / transcript | `action: "prune_history"` (`strategy: "afm"` preferred) or `summarize` / `summarize_smart` |
-| Huge file/corpus you may revisit | `action: "chunk"` then later `resolve` with `id` |
+| Keep only lines about a question | `action: "filter_relevant"` + `query` (or `filter` + `query`) |
+| Rank candidates for a question | `action: "rerank"` + `query` + `items` / chunk `map` |
+| Dense rewrite of code/logs/JSON | `action: "compress"` + `text` (skip if <~1000 chars unless `force`) |
+| Long structured text | `action: "summarize"` / `summarize_smart` |
+| Huge file/corpus you may revisit | `action: "chunk"` then `resolve` with `id` |
 | Park bulky payload outside prompt | `action: "cache_store"` → keep only returned `key` |
-| Guided recipe (logs, cargo fail, AFM, …) | `action: "playbooks"` then `playbook` + `id`, or read `cmp://skill/playbook/{id}` |
-| Multi-file archive bundle | `action: "pack"` / `unpack` (size-capped; scripts never run) |
+| Why heuristic / LLM down? | `action: "llm_status"` (`force: true` for chat probe) |
 | Measure size / savings | `action: "count_tokens"` or `stats` |
-| Discover actions | `action: "catalog"` / `help` (default compressed; `force: true` for full), or MCP resources `cmp://skill/index` |
 
 ## Rules of thumb
 
 - If a single tool result is likely >~400 tokens of noise, run `filter` or `compress_output` first.
 - Prefer `filter_relevant` when you already know the question the log must answer.
-- Prefer `cache_store` over re-pasting the same large blob across turns (optional `COMPENDIUM_CACHE_DIR` for disk persistence).
+- Prefer `cache_store` over re-pasting the same large blob across turns.
 - Prefer `chunk` index text over the full corpus; `resolve` only the ids you need.
-- Prefer `catalog`/`help` (or resources) over guessing action fields; default `help` is compressed — use `force: true` for examples.
 - Do not invent other tool names (`compendium_filter`, etc.) — there is only `compendium`.
 - Response shape: `{ ok, action, result_json, error? }`. Parse `result_json` as JSON for the action payload.
 - Smart actions report `backend: "local_llm" | "heuristic"`; heuristic fallback is normal when no local SLM URL is set.

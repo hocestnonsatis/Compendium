@@ -1,6 +1,6 @@
 //! One-shot Ollama enablement for Compendium (`compendium setup-ollama`).
 //!
-//! Detects or installs Ollama, pulls a small chat (+ embed) model, probes the
+//! Detects or installs Ollama, pulls a small chat model, probes the
 //! loopback OpenAI endpoint, and optionally merges `COMPENDIUM_LOCAL_LLM_*`
 //! into a Cursor MCP config. Non-interactive: every input is a flag.
 
@@ -22,8 +22,6 @@ use crate::pipeline::local_llm::{llm_status, LlmStatusResult};
 pub const DEFAULT_OLLAMA_OPENAI_URL: &str = "http://127.0.0.1:11434/v1";
 /// Small chat model (~2 GiB). Override with `--chat-model`.
 pub const DEFAULT_CHAT_MODEL: &str = "qwen2.5:3b";
-/// Embedding model for hybrid `rerank` / `brief`.
-pub const DEFAULT_EMBED_MODEL: &str = "nomic-embed-text";
 /// Default `mcpServers` key written by `--write-mcp`.
 pub const DEFAULT_MCP_SERVER_KEY: &str = "compendium";
 
@@ -35,7 +33,6 @@ const SERVE_POLL: Duration = Duration::from_millis(400);
 pub struct SetupOllamaArgs {
     pub url: String,
     pub chat_model: String,
-    pub embed_model: Option<String>,
     pub install: bool,
     pub pull: bool,
     pub probe: bool,
@@ -52,7 +49,6 @@ impl Default for SetupOllamaArgs {
         Self {
             url: DEFAULT_OLLAMA_OPENAI_URL.into(),
             chat_model: DEFAULT_CHAT_MODEL.into(),
-            embed_model: Some(DEFAULT_EMBED_MODEL.into()),
             install: false,
             pull: true,
             probe: true,
@@ -86,8 +82,6 @@ pub struct SetupReport {
     pub serve_started: bool,
     pub url: String,
     pub chat_model: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embed_model: Option<String>,
     pub pulled: Vec<String>,
     pub already_present: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,22 +100,20 @@ pub fn print_help(out: &mut dyn Write) -> io::Result<()> {
     writeln!(
         out,
         "\
-Compendium — enable local Ollama for smart/hybrid actions
+Compendium — enable local Ollama for smart actions
 
 Usage:
   compendium setup-ollama [OPTIONS]
   compendium ollama [OPTIONS]
 
 After adding the Compendium MCP server (heuristics work with no model),
-run this once to pull small local models and set COMPENDIUM_LOCAL_LLM_*.
+run this once to pull a small local model and set COMPENDIUM_LOCAL_LLM_*.
 
 Options:
   --chat-model NAME     Chat model to pull (default: {chat})
-  --embed-model NAME    Embedding model (default: {embed})
-  --no-embed            Skip embedding model
   --url URL             OpenAI-compatible base (default: {url})
   --install             If Ollama is missing, run the official installer
-  --no-pull             Do not pull models (probe + MCP env only)
+  --no-pull             Do not pull the model (probe + MCP env only)
   --skip-probe          Do not call GET /v1/models
   --write-mcp [PATH]    Merge env into Cursor mcp.json
                         (default PATH: ~/.cursor/mcp.json)
@@ -149,7 +141,6 @@ Exit codes:
 Then reload MCP and call action=llm_status (reachable: true → local_llm backend).
 ",
         chat = DEFAULT_CHAT_MODEL,
-        embed = DEFAULT_EMBED_MODEL,
         url = DEFAULT_OLLAMA_OPENAI_URL,
     )
 }
@@ -167,9 +158,6 @@ pub fn parse_args(args: &[String]) -> Result<ParsedSetup, String> {
         match key {
             "--chat-model" => {
                 parsed.chat_model = require_value("--chat-model", inline, args, &mut i)?;
-            }
-            "--embed-model" => {
-                parsed.embed_model = Some(require_value("--embed-model", inline, args, &mut i)?);
             }
             "--url" => {
                 parsed.url = require_value("--url", inline, args, &mut i)?;
@@ -209,7 +197,6 @@ pub fn parse_args(args: &[String]) -> Result<ParsedSetup, String> {
             }
             "--install" => parsed.install = true,
             "--no-pull" => parsed.pull = false,
-            "--no-embed" => parsed.embed_model = None,
             "--skip-probe" => parsed.probe = false,
             "--dry-run" => parsed.dry_run = true,
             "--json" => parsed.json = true,
@@ -231,11 +218,6 @@ pub fn parse_args(args: &[String]) -> Result<ParsedSetup, String> {
     }
     if parsed.url.trim().is_empty() {
         return Err("--url must not be empty".into());
-    }
-    if let Some(embed) = parsed.embed_model.as_deref() {
-        if embed.trim().is_empty() {
-            return Err("--embed-model must not be empty (or pass --no-embed)".into());
-        }
     }
     Ok(ParsedSetup::Run(parsed))
 }
@@ -274,13 +256,10 @@ fn require_value(
 }
 
 /// Env map written into MCP config / printed for copy-paste.
-pub fn mcp_env_map(url: &str, chat: &str, embed: Option<&str>) -> BTreeMap<String, String> {
+pub fn mcp_env_map(url: &str, chat: &str) -> BTreeMap<String, String> {
     let mut env = BTreeMap::new();
     env.insert("COMPENDIUM_LOCAL_LLM_URL".into(), url.trim().to_string());
     env.insert("COMPENDIUM_LOCAL_LLM_MODEL".into(), chat.trim().to_string());
-    if let Some(e) = embed.map(str::trim).filter(|s| !s.is_empty()) {
-        env.insert("COMPENDIUM_LOCAL_EMBED_MODEL".into(), e.to_string());
-    }
     env
 }
 
@@ -392,7 +371,7 @@ pub fn run(args: &[String]) -> i32 {
 
 fn execute(opts: SetupOllamaArgs) -> Result<i32, String> {
     let mcp_path = resolve_mcp_path(&opts)?;
-    let env = mcp_env_map(&opts.url, &opts.chat_model, opts.embed_model.as_deref());
+    let env = mcp_env_map(&opts.url, &opts.chat_model);
 
     let mut report = SetupReport {
         ok: false,
@@ -404,7 +383,6 @@ fn execute(opts: SetupOllamaArgs) -> Result<i32, String> {
         serve_started: false,
         url: opts.url.clone(),
         chat_model: opts.chat_model.clone(),
-        embed_model: opts.embed_model.clone(),
         pulled: Vec::new(),
         already_present: Vec::new(),
         probe: None,
@@ -509,10 +487,7 @@ fn execute(opts: SetupOllamaArgs) -> Result<i32, String> {
         human(opts.json, &format!("Ollama reachable at {native}\n"));
     }
 
-    let mut wanted: Vec<String> = vec![opts.chat_model.clone()];
-    if let Some(e) = &opts.embed_model {
-        wanted.push(e.clone());
-    }
+    let wanted: Vec<String> = vec![opts.chat_model.clone()];
 
     if report.ollama_running {
         let present = list_ollama_models(&tags_url).unwrap_or_default();
@@ -550,9 +525,9 @@ fn execute(opts: SetupOllamaArgs) -> Result<i32, String> {
             enabled: true,
             base_url: Some(opts.url.clone()),
             model: opts.chat_model.clone(),
-            embedding_model: opts.embed_model.clone(),
             api_key: None,
             timeout_secs: opts.timeout_secs,
+            reasoning_effort: Some("low".into()),
         };
         let status = llm_status(&cfg, false);
         report.probe = Some(status.clone());
@@ -619,9 +594,7 @@ fn next_steps(opts: &SetupOllamaArgs, mcp_written: bool) -> Vec<String> {
         next.push("Reload MCP".into());
     }
     next.push("Call compendium action=llm_status — expect reachable: true".into());
-    next.push(
-        "Then summarize_smart / filter_relevant / rerank use backend local_llm or hybrid".into(),
-    );
+    next.push("Then summarize_smart / filter_relevant report backend local_llm".into());
     next
 }
 
@@ -852,27 +825,20 @@ mod tests {
         };
         assert!(a.dry_run && a.json && !a.pull && a.write_mcp);
         assert_eq!(a.chat_model, "llama3.2:3b");
-        assert_eq!(a.embed_model.as_deref(), Some(DEFAULT_EMBED_MODEL));
         assert_eq!(a.mcp_path.as_deref(), Some(Path::new("/tmp/mcp.json")));
     }
 
     #[test]
-    fn parse_inline_equals_and_no_embed() {
+    fn parse_inline_equals_and_project() {
         let ParsedSetup::Run(a) = parse_args(&s(&[
             "--chat-model=qwen2.5:7b",
-            "--embed-model=all-minilm",
             "--url=http://127.0.0.1:11434/v1",
-            "--no-embed",
             "--project",
         ]))
         .unwrap() else {
             panic!("expected Run");
         };
         assert_eq!(a.chat_model, "qwen2.5:7b");
-        assert!(
-            a.embed_model.is_none(),
-            "--no-embed should win after embed-model"
-        );
         assert_eq!(a.mcp_path.as_deref(), Some(Path::new(".cursor/mcp.json")));
         assert!(a.write_mcp);
     }
@@ -891,31 +857,22 @@ mod tests {
     }
 
     #[test]
-    fn mcp_env_includes_embed_unless_none() {
-        let with = mcp_env_map(
-            DEFAULT_OLLAMA_OPENAI_URL,
-            DEFAULT_CHAT_MODEL,
-            Some(DEFAULT_EMBED_MODEL),
-        );
+    fn mcp_env_has_url_and_model() {
+        let env = mcp_env_map(DEFAULT_OLLAMA_OPENAI_URL, DEFAULT_CHAT_MODEL);
         assert_eq!(
-            with.get("COMPENDIUM_LOCAL_LLM_URL").map(String::as_str),
+            env.get("COMPENDIUM_LOCAL_LLM_URL").map(String::as_str),
             Some(DEFAULT_OLLAMA_OPENAI_URL)
         );
         assert_eq!(
-            with.get("COMPENDIUM_LOCAL_EMBED_MODEL").map(String::as_str),
-            Some(DEFAULT_EMBED_MODEL)
+            env.get("COMPENDIUM_LOCAL_LLM_MODEL").map(String::as_str),
+            Some(DEFAULT_CHAT_MODEL)
         );
-        let without = mcp_env_map(DEFAULT_OLLAMA_OPENAI_URL, DEFAULT_CHAT_MODEL, None);
-        assert!(!without.contains_key("COMPENDIUM_LOCAL_EMBED_MODEL"));
+        assert_eq!(env.len(), 2);
     }
 
     #[test]
     fn merge_creates_npx_server_and_preserves_existing_command() {
-        let env = mcp_env_map(
-            DEFAULT_OLLAMA_OPENAI_URL,
-            "qwen2.5:3b",
-            Some("nomic-embed-text"),
-        );
+        let env = mcp_env_map(DEFAULT_OLLAMA_OPENAI_URL, "qwen2.5:3b");
         let created = merge_compendium_mcp_env(json!({}), &env, "compendium").unwrap();
         assert_eq!(created["mcpServers"]["compendium"]["command"], json!("npx"));
         assert_eq!(
@@ -970,9 +927,9 @@ mod tests {
 
     #[test]
     fn model_presence_normalizes_latest() {
-        let names = vec!["qwen2.5:3b:latest".into(), "nomic-embed-text".into()];
+        let names = vec!["qwen2.5:3b:latest".into(), "gemma3:4b".into()];
         assert!(model_is_present(&names, "qwen2.5:3b"));
-        assert!(model_is_present(&names, "nomic-embed-text:latest"));
+        assert!(model_is_present(&names, "gemma3:4b:latest"));
         assert!(!model_is_present(&names, "llama3.2:3b"));
     }
 
@@ -985,17 +942,9 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("mcp.json");
-        let env = mcp_env_map(
-            "http://127.0.0.1:11434/v1",
-            "qwen2.5:3b",
-            Some("nomic-embed-text"),
-        );
+        let env = mcp_env_map("http://127.0.0.1:11434/v1", "qwen2.5:3b");
         write_mcp_env(&path, &env, "compendium").unwrap();
-        let again = mcp_env_map(
-            "http://127.0.0.1:11434/v1",
-            "qwen2.5:7b",
-            Some("nomic-embed-text"),
-        );
+        let again = mcp_env_map("http://127.0.0.1:11434/v1", "qwen2.5:7b");
         write_mcp_env(&path, &again, "compendium").unwrap();
         let doc: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(

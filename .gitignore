@@ -5,8 +5,6 @@
 *.swp
 node_modules/
 *.tgz
-npm/platforms/*/bin/compendium
-npm/platforms/*/bin/compendium.exe
 
 # Local Cursor MCP paths
 .cursor/mcp.json

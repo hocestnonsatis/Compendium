@@ -1,8 +1,6 @@
 //! Token-optimization pipeline primitives.
 
-pub mod audit;
 pub mod bm25;
-pub mod brief;
 pub mod cache;
 pub mod catalog;
 pub mod chunk;
@@ -10,9 +8,6 @@ pub mod compress;
 pub mod filter;
 pub mod local_llm;
 pub mod output;
-pub mod pack;
-pub mod playbook;
-pub mod prune;
 pub mod rerank;
 pub mod sanitize;
 pub mod signal;
@@ -20,30 +15,6 @@ pub mod smart;
 pub mod stats;
 pub mod summarize;
 pub mod tokens;
-
-use crate::config::Config;
-
-/// Shared context passed into pipeline stages.
-#[derive(Debug, Clone)]
-pub struct PipelineContext {
-    pub config: Config,
-}
-
-impl PipelineContext {
-    pub fn new(config: Config) -> Self {
-        Self { config }
-    }
-
-    pub fn from_env() -> Self {
-        Self::new(Config::from_env())
-    }
-}
-
-impl Default for PipelineContext {
-    fn default() -> Self {
-        Self::from_env()
-    }
-}
 
 /// Metrics attached to every pipeline result.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]

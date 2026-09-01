@@ -4,65 +4,67 @@ Thanks for helping improve Compendium — an MCP server that compresses, summari
 
 ## Development setup
 
-**Requirements:** Rust stable (edition 2021), Node.js ≥18 (npm wrapper / distribution).
+**Requirements:** Rust stable (edition 2021), Node.js ≥18 (npm launcher).
 
 ```bash
 git clone https://github.com/hocestnonsatis/Compendium.git
 cd Compendium
-cargo build --release --features real-tokens,http
+cargo build --release
 cargo test
-cargo test --features http --test http_smoke
 ```
 
-Local MCP without npm:
+Run the server locally without npm:
 
 ```bash
 ./target/release/compendium
-# or
-COMPENDIUM_BINARY=./target/release/compendium node bin/run.js
+# or through the npm launcher (picks up target/release automatically)
+node bin/run.js
 ```
 
-CI (GitHub Actions) runs `fmt`, `clippy -D warnings`, `cargo test`, HTTP smoke, and heuristic **eval regression** on push/PR to `main`/`master`:
+CI runs `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, the eval regression suite, and a Cargo.toml/package.json version check on every push/PR to `master`:
 
 ```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --features real-tokens -- -D warnings
+cargo test
 COMPENDIUM_EVAL_LATENCY_MS=5000 cargo test --test eval_regression
-npm run check-npm-gates
+npm run check-version
 ```
 
-Local default latency soft budget is 2000ms (`COMPENDIUM_EVAL_LATENCY_MS`).
-
-Before touching release/platform wiring, run `npm run check-npm-gates` (selftest → alignment → residual registry + Releases-fallback probe — same order as PR CI and Release publish).
-
-Optional local SLM (Ollama / any OpenAI-compatible loopback server):
+Optional local model for the smart actions:
 
 ```bash
 ./target/release/compendium setup-ollama --write-mcp
-# or manually:
+# or manually
 export COMPENDIUM_LOCAL_LLM_URL=http://127.0.0.1:11434/v1
 export COMPENDIUM_LOCAL_LLM_MODEL=qwen2.5:3b
-export COMPENDIUM_LOCAL_EMBED_MODEL=nomic-embed-text
 ```
-
-npm packaging notes: [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md).
 
 ## How we work
 
-- Prefer small, focused PRs on `master` (or a short-lived branch).
+- Small, focused changes on `master`.
 - Match existing Rust style; keep changes scoped to the request.
-- Add/adjust tests for pipeline and server behavior when you change logic.
-- Do not commit secrets, local MCP credentials, or native binaries under `npm/platforms/*/bin/`.
-- Logs for the MCP stdio server must go to **stderr** only.
+- Add or adjust tests when you change pipeline or server behavior.
+- Heuristic actions must stay deterministic; smart actions must report `backend`.
+- Logs go to **stderr** only — stdout is MCP JSON-RPC.
+- Never commit secrets or local MCP credentials.
+
+## Releasing
+
+1. Bump `version` in `Cargo.toml` and `package.json` (must match — `npm run check-version`).
+2. Update `CHANGELOG.md`.
+3. Commit, tag `vX.Y.Z`, push, and publish a GitHub Release for the tag.
+4. `release.yml` builds the binaries, attaches them to the Release, and publishes `compendium-mcp` to npm via OIDC Trusted Publishing.
 
 ## Pull requests
 
-1. Describe **why** the change exists (not only what files moved).
+1. Say **why** the change exists.
 2. Note how you tested (`cargo test`, e2e smoke, manual MCP call).
 3. Update `README.md` only when user-facing behavior changes.
-4. For releases: versions and platform keys stay aligned across `Cargo.toml`, root `package.json` / `optionalDependencies`, `npm/platforms/*/package.json`, `npm/lib/platform.js` `PLATFORMS` (including `asset` / `rustTarget`), and `release.yml` (matrix include keys, publish `for platform in …` loop, and `residual_oidc` soft-fail keys ⊆ known platforms — matrix and publish loop are checked independently). Run `npm run check-npm-gates` (selftest + alignment + residual probe; also gated before Release npm publish). Keep `residual_oidc` empty while every publish-loop package exists on npm; if a brand-new platform is added, soft-fail only until first publish / Trusted Publisher — see [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md). `check-residual-npm` fails on stale or incomplete allowlists, missing Release assets for still-missing residuals, and post-tag gaps for optionalDeps / main wrapper `compendium-mcp@${version}`.
 
 ## Issues
 
-Use the issue templates for bugs and feature requests. Include Compendium version (`compendium-mcp` / git SHA), OS/arch, and a minimal repro when reporting bugs.
+Use the issue templates. Include Compendium version, OS/arch, and a minimal repro.
 
 ## Code of conduct
 
@@ -70,4 +72,4 @@ Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Security
 
-Please do **not** open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).
+Do **not** open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).

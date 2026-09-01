@@ -2,22 +2,21 @@
 
 use compendium::pipeline::compress::ContentType;
 use compendium::pipeline::output::CompressOutputOptions;
-use compendium::pipeline::prune::PruneStrategy;
 use compendium::pipeline::summarize::SummarizeMode;
 use compendium::CompendiumServer;
 use compendium::{
     chunk_with_refs, compress, compress_output, count_tokens_detailed, filter, filter_relevant,
-    parse_history_input, prune_history, summarize, summarize_smart, ChunkOptions, CompressOptions,
-    Config, FilterOptions, PruneOptions, SmartBackend, SmartOptions, SummarizeOptions,
+    rerank, summarize, summarize_smart, ChunkOptions, CompressOptions, Config, FilterOptions,
+    RerankItem, RerankOptions, SmartBackend, SmartOptions, SummarizeOptions,
 };
 
 #[test]
 fn end_to_end_pipeline_reduces_tokens() {
     let config = Config::default();
     let noisy = r#"
-[32mINFO[0m starting worker
-[32mINFO[0m starting worker
-[32mINFO[0m starting worker
+[32mINFO[0m starting worker
+[32mINFO[0m starting worker
+[32mINFO[0m starting worker
 
 {
   "users": [
@@ -73,16 +72,6 @@ fn end_to_end_pipeline_reduces_tokens() {
 
     let counted = count_tokens_detailed("hello world", &config);
     assert!(counted.tokens >= 1);
-
-    let pruned = prune_history(
-        &parse_history_input("user: How?\nassistant: Like this.\nuser: ok\nuser: And more?"),
-        &PruneOptions {
-            strategy: PruneStrategy::Remove,
-            ..Default::default()
-        },
-        &config,
-    );
-    assert!(pruned.dropped >= 1);
 
     let out = compress_output(
         "   Compiling a v0.1.0\n   Compiling b v0.1.0\n    Finished `dev` profile\n",
@@ -147,32 +136,7 @@ fn sanitize_redacts_secrets() {
 }
 
 #[test]
-fn afm_prune_and_rerank() {
-    use compendium::{
-        prune_history, rerank, HistoryMessage, PruneOptions, PruneStrategy, RerankItem,
-        RerankOptions,
-    };
-
-    let mut msgs = Vec::new();
-    for i in 0..18 {
-        msgs.push(HistoryMessage {
-            role: if i % 2 == 0 { "user" } else { "assistant" }.into(),
-            content: format!("Turn {i}: substantial conversation content about topic {i}."),
-        });
-    }
-    let pruned = prune_history(
-        &msgs,
-        &PruneOptions {
-            strategy: PruneStrategy::Afm,
-            keep_last_n: 4,
-            thematic_n: Some(6),
-            ..Default::default()
-        },
-        &Config::default(),
-    );
-    assert!(pruned.distant_key.is_some());
-    assert!(pruned.tiers.len() >= 2);
-
+fn rerank_bm25_ranks_match_first() {
     let ranked = rerank(
         "auth 401",
         &[
@@ -192,4 +156,5 @@ fn afm_prune_and_rerank() {
         &Config::default(),
     );
     assert_eq!(ranked.hits[0].id.as_deref(), Some("y"));
+    assert_eq!(ranked.backend, "bm25");
 }

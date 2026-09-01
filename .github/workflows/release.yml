@@ -1,8 +1,8 @@
 name: Release
 
-# Trigger: publish a GitHub Release (tag vX.Y.Z) OR workflow_dispatch with a tag.
-# Builds native binaries (real-tokens + http), uploads release assets, publishes
-# platform optionalDependency packages + the main compendium-mcp wrapper to npm.
+# Trigger: publish a GitHub Release (tag vX.Y.Z) or run manually with a tag.
+# Builds native binaries, attaches them to the Release, then publishes the
+# single `compendium-mcp` npm wrapper (which downloads the matching asset).
 
 on:
   release:
@@ -10,18 +10,17 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build/publish (e.g. v0.1.0)"
+        description: "Release tag to build/publish (e.g. v0.7.0)"
         required: true
         type: string
 
 permissions:
   contents: write
-  id-token: write # npm Trusted Publishing (OIDC) + provenance
+  id-token: write # npm Trusted Publishing (OIDC)
 
 env:
   CARGO_TERM_COLOR: always
-  # Production npm binary ships full feature set.
-  CARGO_FEATURES: real-tokens,http
+  CARGO_FEATURES: real-tokens
 
 jobs:
   meta:
@@ -30,7 +29,6 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       tag: ${{ steps.ver.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
       - id: ver
         shell: bash
         run: |
@@ -39,10 +37,8 @@ jobs:
           else
             TAG="${{ github.event.release.tag_name }}"
           fi
-          VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Resolved tag=$TAG version=$VERSION"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: meta
@@ -52,99 +48,49 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-14
-            platform: darwin-arm64
             asset: compendium-darwin-arm64
-            bin: compendium
-          # macos-13 (Intel) retired — build x86_64 on arm64 macos-14 via rustc target.
           - target: x86_64-apple-darwin
             os: macos-14
-            platform: darwin-x64
             asset: compendium-darwin-x64
-            bin: compendium
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
-            platform: linux-x64
             asset: compendium-linux-x64
-            bin: compendium
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04
-            platform: linux-arm64
             asset: compendium-linux-arm64
-            bin: compendium
-            cross: true
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-22.04
-            platform: linux-x64-musl
-            asset: compendium-linux-x64-musl
-            bin: compendium
             cross: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            platform: win32-x64
             asset: compendium-win32-x64.exe
-            bin: compendium.exe
-          - target: aarch64-pc-windows-msvc
-            os: windows-11-arm
-            platform: win32-arm64
-            asset: compendium-win32-arm64.exe
-            bin: compendium.exe
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross (linux aarch64)
+      - name: Install cross
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Build (native)
-        if: ${{ !matrix.cross }}
+      - name: Build
         shell: bash
         run: |
-          cargo build --release --target ${{ matrix.target }} --features "$CARGO_FEATURES"
-
-      - name: Build (cross)
-        if: matrix.cross
-        shell: bash
-        run: |
-          cross build --release --target ${{ matrix.target }} --features "$CARGO_FEATURES"
-
-      - name: Stage binary
-        shell: bash
-        run: |
-          SRC="target/${{ matrix.target }}/release/${{ matrix.bin }}"
-          test -f "$SRC"
-          mkdir -p "npm/platforms/${{ matrix.platform }}/bin"
-          DEST="npm/platforms/${{ matrix.platform }}/bin/${{ matrix.bin }}"
-          cp "$SRC" "$DEST"
-          if [[ "${{ matrix.bin }}" != *.exe ]]; then
-            chmod +x "$DEST"
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }} --features "$CARGO_FEATURES"
+          else
+            cargo build --release --target ${{ matrix.target }} --features "$CARGO_FEATURES"
           fi
-          # Release asset (flat name for download fallback)
-          cp "$SRC" "${{ matrix.asset }}"
-          ls -lh "${{ matrix.asset }}" "$DEST"
 
-      - name: Sync platform package version
+      - name: Stage asset
         shell: bash
         run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const platform = process.env.PLATFORM;
-          const version = process.env.VERSION;
-          const pkgPath = `npm/platforms/${platform}/package.json`;
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          pkg.version = version;
-          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-          console.log(`set ${pkg.name}@${version}`);
-          NODE
-        env:
-          PLATFORM: ${{ matrix.platform }}
-          VERSION: ${{ needs.meta.outputs.version }}
+          BIN=compendium
+          [[ "${{ matrix.asset }}" == *.exe ]] && BIN=compendium.exe
+          cp "target/${{ matrix.target }}/release/$BIN" "${{ matrix.asset }}"
+          ls -lh "${{ matrix.asset }}"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
@@ -155,18 +101,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload platform artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: platform-${{ matrix.platform }}
-          path: npm/platforms/${{ matrix.platform }}/
-          if-no-files-found: error
-
   publish-npm:
     needs: [meta, build]
     runs-on: ubuntu-latest
-    # OIDC Trusted Publishing: no NPM_TOKEN. Configure each package on npmjs.com
-    # (Trusted Publisher → GitHub Actions → workflow filename `release.yml`).
     permissions:
       contents: read
       id-token: write
@@ -175,119 +112,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Trusted Publishing needs Node ≥22.14 and npm ≥11.5.1
+          # Trusted Publishing needs npm ≥ 11.5.1
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          package-manager-cache: false
 
-      - name: Download all platform artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: platform-*
-          path: npm/platforms-artifacts
-
-      - name: Assemble platform packages
-        shell: bash
+      - name: Check version matches tag
         run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          REPO="${{ github.repository }}"
-          for dir in npm/platforms-artifacts/platform-*; do
-            name="$(basename "$dir")"          # platform-darwin-arm64
-            platform="${name#platform-}"      # darwin-arm64
-            dest="npm/platforms/$platform"
-            mkdir -p "$dest"
-            cp -a "$dir"/. "$dest"/
-            # Ensure package.json version + repository match (OIDC/provenance)
-            node -e "
-              const fs=require('fs');
-              const p='$dest/package.json';
-              const j=JSON.parse(fs.readFileSync(p,'utf8'));
-              j.version='$VERSION';
-              j.repository = {
-                type: 'git',
-                url: 'git+https://github.com/$REPO.git',
-              };
-              j.bugs = { url: 'https://github.com/$REPO/issues' };
-              j.homepage = 'https://github.com/$REPO#readme';
-              fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');
-              console.log(j.name, j.version);
-            "
-            test -e "$dest/bin/compendium" || test -e "$dest/bin/compendium.exe"
-          done
+          npm run check-version
+          test "$(node -p "require('./package.json').version")" = "${{ needs.meta.outputs.version }}"
 
-      - name: Sync root package.json version + optionalDependencies
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const version = process.env.VERSION;
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          pkg.version = version;
-          for (const key of Object.keys(pkg.optionalDependencies || {})) {
-            pkg.optionalDependencies[key] = version;
-          }
-          // Prefer the real GitHub repo when available
-          const repo = process.env.GITHUB_REPOSITORY;
-          if (repo && pkg.repository) {
-            pkg.repository.url = `git+https://github.com/${repo}.git`;
-            pkg.bugs = { url: `https://github.com/${repo}/issues` };
-            pkg.homepage = `https://github.com/${repo}#readme`;
-          }
-          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          console.log(`root ${pkg.name}@${version}`);
-          NODE
-        env:
-          VERSION: ${{ needs.meta.outputs.version }}
-
-      - name: npm version / platform gates
-        run: |
-          npm run check-versions-selftest
-          npm run check-versions
-          # Tag exists before OIDC publish; version-presence gates are for PR CI post-release.
-          COMPENDIUM_SKIP_PUBLISHED_VERSION_GATE=1 npm run check-residual-npm
-
-      - name: Publish platform packages (OIDC)
-        id: publish_platforms
-        shell: bash
-        run: |
-          set -uo pipefail
-          npm --version
-          # setup-node injects a placeholder NODE_AUTH_TOKEN; clear it so OIDC wins.
-          unset NODE_AUTH_TOKEN || true
-          # Soft-fail allowlist for platforms whose npm package is not yet on the registry.
-          # Empty: all platforms hard-fail on OIDC publish errors (musl + win32-arm64 published 0.6.0).
-          residual_oidc=""
-          failed=0
-          residual_warned=0
-          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 linux-x64-musl win32-x64 win32-arm64; do
-            dest="npm/platforms/$platform"
-            if [[ -e "$dest/bin/compendium" || -e "$dest/bin/compendium.exe" ]]; then
-              echo "Publishing $dest …"
-              if out=$(npm publish --access public "$dest" 2>&1); then
-                echo "$out"
-              else
-                echo "$out"
-                if echo "$out" | grep -qiE 'cannot publish over existing|EPUBLISHCONFLICT|previously published'; then
-                  echo "Already published — treating as success"
-                elif [[ " $residual_oidc " == *" $platform "* ]]; then
-                  echo "::warning::Residual OIDC soft-fail for $platform (Trusted Publisher / interactive create still needed; Releases fallback OK). Remove from residual_oidc in release.yml once on npm."
-                  residual_warned=1
-                else
-                  echo "::error::Failed to publish $platform"
-                  failed=1
-                fi
-              fi
-            else
-              echo "Skipping $platform (no binary artifact)"
-            fi
-          done
-          echo "failed=$failed" >> "$GITHUB_OUTPUT"
-          echo "residual_warned=$residual_warned" >> "$GITHUB_OUTPUT"
-        env:
-          NODE_AUTH_TOKEN: ""
-
-      - name: Publish main wrapper (OIDC)
+      - name: Publish compendium-mcp (OIDC)
         run: |
           unset NODE_AUTH_TOKEN || true
           if out=$(npm publish --access public 2>&1); then
@@ -295,15 +129,10 @@ jobs:
           else
             echo "$out"
             if echo "$out" | grep -qiE 'cannot publish over existing|EPUBLISHCONFLICT|previously published'; then
-              echo "Already published — treating as success"
+              echo "Already published — ok"
             else
               exit 1
             fi
           fi
         env:
           NODE_AUTH_TOKEN: ""
-
-      - name: Fail if any platform publish failed
-        if: steps.publish_platforms.outputs.failed == '1'
-        run: exit 1
-

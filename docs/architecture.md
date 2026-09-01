@@ -1,6 +1,6 @@
 # Architecture
 
-Compendium is a local-first MCP server that shrinks tool/log/workspace text before it enters the model context.
+Compendium is a local-first MCP server that shrinks tool/log text before it enters the model context.
 
 ## Gateway
 
@@ -10,78 +10,55 @@ One MCP tool: **`compendium`**. The `action` enum selects the pipeline op. Every
 { "ok": true, "action": "filter", "result_json": "{...}" }
 ```
 
-Parse `result_json` as JSON for the action payload. Optional `sanitize_input: true` scrubs secrets/IPI before the chosen action.
-
-Progressive disclosure:
-
-| Surface | Role |
-|---------|------|
-| `action=catalog` / `help` | Short ads → full notes |
-| `cmp://skill/index` | Skill index |
-| `cmp://skill/action/{id}` | Full action markdown |
-| `cmp://skill/playbook/{id}` | Playbook body |
+Parse `result_json` as JSON for the action payload. Optional `sanitize_input: true` scrubs secrets/IPI before the chosen action. `action=help` lists actions; `help` + `id` returns fields, an example call, and notes.
 
 ## Pipeline
 
 ```
-text / query / messages
-        │
-        ▼
- optional sanitize_input
-        │
-        ▼
-  action dispatch (server/ + actions.rs)
-        │
-        ├── heuristic pipeline (filter, compress, BM25, AFM, …)
-        ├── rerank / brief → BM25 (+ optional embeddings = hybrid)
-        │                         └── opt-in SLM cross-encoder top-N
-        └── smart actions → loopback OpenAI-compatible SLM
-                    │ on unset/fail
-                    └── heuristic fallback (backend: "heuristic")
+text / query
+      │
+      ▼
+optional sanitize_input
+      │
+      ▼
+action dispatch (src/server/)
+      │
+      ├── heuristic pipeline (filter, compress, compress_output, summarize, BM25 rerank, chunk)
+      └── smart actions (summarize_smart, filter_relevant)
+                │  loopback OpenAI-compatible model when COMPENDIUM_LOCAL_LLM_URL is set
+                └── otherwise heuristic fallback (backend: "heuristic")
 ```
 
-Session state: in-process by default. Set `COMPENDIUM_CACHE_DIR` to persist cache/chunk keys across MCP restarts (size-capped; TTL enforced on access and load). Opt-in action audit: `COMPENDIUM_AUDIT_PATH` (JSONL metadata only).
+Session state (chunk ids, `cache://` keys, savings counters) lives in the server process and is lost on restart.
 
-**Shipped through 0.6.3:** C-roadmap (0.6.0) + residual npm / sessionless HTTP (0.6.1) + ops corpus + first-10-min DX (0.6.2) + `setup-ollama` CLI (0.6.3). See [REPORT.md](../REPORT.md) §7. **npm:** all platform packages on registry (`residual_oidc` empty). **Deferred:** embedded LLM, TurboQuant/NPU, foreign MCP proxy, cloud embeddings. **0.7:** not committed — candidate thesis only if real usage shows recurring preserve/discard failures.
+## Layout
+
+```
+src/
+  main.rs            CLI: stdio server | setup-ollama
+  setup_ollama.rs    detect/pull/probe Ollama, merge env into mcp.json
+  config.rs          COMPENDIUM_* env
+  server/            MCP tool + action handlers (rmcp)
+  pipeline/          filter, compress, output, summarize, smart, local_llm,
+                     bm25, rerank, chunk, cache, sanitize, signal, stats, tokens, catalog
+bin/run.js           npm launcher (dev build → cached GitHub Release download)
+npm/lib/platform.js  platform → release asset
+tests/               integration, e2e stdio smoke, eval regression, local LLM mock, CLI
+testdata/            eval fixtures
+```
 
 ## Quality gates
 
-- Fixtures: [`testdata/`](../testdata/) — noisy logs, cargo fail, shell/npm/docker noise, npm audit, GitHub PR JSON, untrusted paste, long chat, bulky JSON, rerank candidates.
-- CI: `cargo test --test eval_regression` — token-reduction floors, heuristic determinism, soft latency smoke.
-- Latency budget: `COMPENDIUM_EVAL_LATENCY_MS` (default 2000 locally; CI uses a higher soft cap).
-- Heuristic paths must stay deterministic (prefix-cache friendly). Smart/SLM paths report `backend`.
-
-## Hybrid retrieval
-
-- `rerank` / `brief` default `use_embeddings: true` when a loopback LLM is configured; blend weight `COMPENDIUM_HYBRID_ALPHA` (default 0.55 BM25).
-- Opt-in CE: `COMPENDIUM_RERANK_CROSS_ENCODER` / `rerank.use_cross_encoder`; prefer `/v1/rerank`, else chat; partial pair failures keep prior scores (`cross_encoder_partial`).
-- Embedding vectors are cached in-process and, when session cache is used, under `cache://embed/…` keys (also persisted if `COMPENDIUM_CACHE_DIR` is set). Hit/miss counters surface via `stats` / rerank telemetry.
-
-## Shared cache ops
-
-- Multiple MCP processes may share one `COMPENDIUM_CACHE_DIR`. There is **no** cross-process lock; TTL/eviction are best-effort on access and load.
-- Prefer a dedicated dir per host/user; do not assume exclusive writers.
-- Cursor/local development: after code changes, rebuild `target/release/compendium` and reload MCP so the live tool schema matches source (avoid stale npx/release binaries during development).
-
-## Transports
-
-| Mode | Binary | Notes |
-|------|--------|-------|
-| stdio | default | Cursor / Claude Desktop — dual-compat (legacy initialize or modern connect/`discover`) |
-| Streamable HTTP | `--features http` → `compendium http [BIND]` | `/mcp` on loopback; **sessionless** (`2026-07-28` + older Streamable HTTP without sticky sessions); JSON preferred, SSE fallback |
-| Ollama helper | `compendium setup-ollama` | Host CLI (not MCP): install/pull/probe + optional `mcp.json` env merge |
-
-App cache (`COMPENDIUM_CACHE_DIR`, `cache://` / `cmp://` keys) is **not** an MCP transport session. Prefer stdio for IDE hosts; use HTTP when the client speaks Streamable HTTP. See playbook `http-transport`.
+- `cargo test --test eval_regression` — token-reduction floors, heuristic determinism, soft latency smoke (`COMPENDIUM_EVAL_LATENCY_MS`).
+- `cargo test --test e2e_smoke` — spawns the binary, completes the MCP handshake over stdio, calls every action.
+- Heuristic paths must stay deterministic. Smart paths must report `backend`.
 
 ## Security posture
 
-- Local LLM URLs must resolve to **loopback** (SSRF guard). Non-loopback private ranges are rejected.
-- Archives never execute scripts; size/file caps apply.
-- Cloud embeddings / remote LLM bases are out of scope.
-- Hybrid `rerank` / `brief` may call loopback `/embeddings` when configured; never remote hosts.
+- Local LLM URLs must resolve to **loopback**; private LAN and public hosts are rejected (SSRF guard).
+- `sanitize` redacts common secret shapes and neutralizes prompt-injection / poison parameters.
+- No cloud path. No archive handling. No filesystem scanning.
 
-## Related
+## Distribution
 
-- Product docs: [README.md](../README.md)
-- Design essay + roadmap status: [REPORT.md](../REPORT.md)
-- Releases: [CHANGELOG.md](../CHANGELOG.md)
+GitHub Release `vX.Y.Z` → `release.yml` builds five native binaries, attaches them to the Release, and publishes the single `compendium-mcp` npm package. The launcher downloads the matching asset to `~/.cache/compendium-mcp/<version>/` on first run.

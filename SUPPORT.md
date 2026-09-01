@@ -13,8 +13,8 @@
 ## Docs
 
 - [README.md](README.md) — install, Cursor config, tools overview
-- [CONTRIBUTING.md](CONTRIBUTING.md) — build, test, PR expectations
-- [npm/DISTRIBUTION.md](npm/DISTRIBUTION.md) — binary packaging and release publish
+- [CONTRIBUTING.md](CONTRIBUTING.md) — build, test, release, PR expectations
+- [docs/architecture.md](docs/architecture.md) — pipeline and distribution overview
 
 ## Maintainer response
 

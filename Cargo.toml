@@ -1,6 +1,6 @@
 [package]
 name = "compendium"
-version = "0.6.3"
+version = "0.7.0"
 edition = "2021"
 description = "MCP server that compresses, summarizes, and filters context to minimize LLM token usage"
 license = "MIT"
@@ -20,20 +20,10 @@ path = "src/main.rs"
 default = []
 # Exact BPE token counts via tiktoken-rs (cl100k_base / o200k_base).
 real-tokens = ["dep:tiktoken-rs"]
-# Streamable HTTP / SSE transport (axum + rmcp StreamableHttpService).
-http = [
-    "dep:axum",
-    "dep:tokio-util",
-    "rmcp/transport-streamable-http-server",
-    "tokio/net",
-    "tokio/signal",
-]
 
 [dependencies]
 anyhow = "1.0.104"
-axum = { version = "0.8", optional = true }
 base64 = "0.22"
-ignore = "0.4"
 regex = "1.13.1"
 # OpenAI-compatible local SLM client (Ollama / Lemonade / llama.cpp server).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
@@ -44,19 +34,13 @@ serde_json = "1.0.151"
 thiserror = "2.0.19"
 tiktoken-rs = { version = "0.12", optional = true }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
-tokio-util = { version = "0.7", optional = true, features = ["rt"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 unicode-segmentation = "1.13.3"
-zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 # Client + child-process transport for E2E smoke tests (features merge with [dependencies]).
-rmcp = { version = "3.1.2", features = [
-    "client",
-    "transport-child-process",
-    "transport-streamable-http-client-reqwest",
-] }
+rmcp = { version = "3.1.2", features = ["client", "transport-child-process"] }
 serde_json = "1.0.151"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "sync", "process", "time"] }
 tokio-test = "0.4.5"

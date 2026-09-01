@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-01
+
+A simplification release. Compendium goes back to doing one thing well — shrinking noisy context — with fewer actions, fewer knobs, and a one-line install.
+
+### Removed
+
+- Actions `brief`, `pack`, `unpack`, `prune_history`, `playbooks`, `playbook`, `catalog` (folded into `help`). 25 actions → 17.
+- MCP resources (`cmp://skill/…`) and bundled playbooks. `action=help` (no `id` → list; `id` → fields + example) is the only discovery surface.
+- Hybrid rerank: loopback embeddings, `/v1/rerank` and chat cross-encoder, embedding cache. `rerank` is pure BM25.
+- Streamable HTTP transport (`--features http`). stdio only.
+- Disk-persisted session cache (`COMPENDIUM_CACHE_DIR` / `_MAX_BYTES`), JSONL audit log (`COMPENDIUM_AUDIT_PATH`), skill resource TTL, archive size caps, hybrid/cross-encoder tuning, `COMPENDIUM_LOCAL_EMBED_MODEL`, `COMPENDIUM_BRIEF_ROOT`, `COMPENDIUM_PLAYBOOKS_DIR`, `COMPENDIUM_HTTP_BIND`. 30 env vars → 11.
+- `stats` latency percentiles, bypass ratios, and lazy-discovery telemetry. `stats` now reports calls and token savings per action plus cache counters.
+- npm per-platform `optionalDependencies` packages, the `residual_oidc` machinery, and ~1.7k lines of version/registry gate scripts. `compendium-mcp` is a single package; the launcher downloads the matching binary from the GitHub Release on first run.
+- `linux-x64-musl` and `win32-arm64` prebuilt targets (build from source and set `COMPENDIUM_BINARY`).
+- `REPORT.md`, `npm/DISTRIBUTION.md`, `setup-ollama --embed-model` / `--no-embed`.
+
+### Changed
+
+- `help` always returns the full example and notes; the compressed/full `fidelity` switch is gone.
+- Default local model id is `qwen2.5:3b` (matches `setup-ollama`).
+- Top-level `force: true` now applies to `compress`, `summarize`, and `summarize_smart` as well as `llm_status`.
+- `rerank` hits expose `score` (normalized) and `bm25_score` (raw) only.
+
+### Added
+
+- Local SLM chat sends `reasoning_effort` (default `low`) plus Ollama `think` so thinking models such as Qwen 3.8 return `content` instead of burning the token budget on hidden CoT. Override with `COMPENDIUM_LOCAL_LLM_REASONING_EFFORT` (`low`/`medium`/`high`/`xhigh`/`off`, or `omit` to drop the fields).
+- `rerank` accepts a prior `chunk` result as `map` through the gateway (was documented, now covered by the e2e smoke).
+
+### Fixed
+
+- `eval_regression::filter_noisy_log_reduces_and_is_deterministic` no longer fails on a brittle 3 % ratio floor; it asserts real token savings and removed lines.
+
 ## [0.6.3] - 2026-08-13
 
 ### Added

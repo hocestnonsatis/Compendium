@@ -4,11 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.6.x` (npm `compendium-mcp` / git tags `v0.6.x`) | ✅ current |
-| `0.5.x` | ✅ security fixes |
-| `0.4.x` (git tag `v0.4.0`) | ✅ security fixes only |
+| `0.7.x` (npm `compendium-mcp` / git tags `v0.7.x`) | ✅ current |
+| `0.6.x` | ✅ security fixes |
 | Unreleased `master` | ✅ best effort |
-| Older tags (`≤0.3.x`) | ❌ |
+| Older tags (`≤0.5.x`) | ❌ |
 
 ## Reporting a vulnerability
 
@@ -34,6 +33,5 @@ Compendium is an MCP server that processes untrusted tool/agent text:
 
 - Local LLM URLs must be **loopback only** (`127.0.0.1`, `::1`, `localhost`) when `COMPENDIUM_LOCAL_LLM_URL` is set.
 - Prefer `action=sanitize` / `sanitize_input` for untrusted payloads before they re-enter an agent context.
-- Playbook bodies and briefings are sanitized by default before return.
-- `pack` / `unpack` treat archives as **untrusted**: compressed/uncompressed size and file-count caps apply; **scripts inside archives are never executed**.
+- The server never reads the filesystem or opens archives; it only transforms text it is given.
 - Do not paste production secrets into issues, PRs, or sample fixtures.
